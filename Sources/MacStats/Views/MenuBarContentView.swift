@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct MenuBarContentView: View {
     @ObservedObject var stats: SystemStats
@@ -6,6 +7,8 @@ struct MenuBarContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            header
+            Divider()
             cpuSection
             Divider()
             memorySection
@@ -31,6 +34,24 @@ struct MenuBarContentView: View {
         }
         .padding(14)
         .frame(width: 340)
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            if let icon = NSImage(named: "AppIcon") {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 32, height: 32)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("MacStats")
+                    .font(.headline)
+                Text("System monitor")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
     }
 
     private var cpuSection: some View {
