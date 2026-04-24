@@ -33,6 +33,8 @@ struct SingleMetricLabel: View {
             return String(format: "%dG", Int(gb.rounded()))
         case .disk:
             return Self.compactShort(stats.disk.readPerSec + stats.disk.writePerSec)
+        case .network:
+            return Self.compactShort(stats.network.bytesInPerSec + stats.network.bytesOutPerSec)
         }
     }
 
@@ -54,6 +56,7 @@ struct SingleMetricLabel: View {
         case .cpu: return 26
         case .ram: return 26
         case .disk: return 28
+        case .network: return 28
         }
     }
 }

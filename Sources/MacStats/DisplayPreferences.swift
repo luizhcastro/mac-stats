@@ -2,13 +2,14 @@ import Foundation
 import Combine
 
 enum BarMetric: String, CaseIterable, Identifiable, Codable {
-    case cpu, ram, disk
+    case cpu, ram, disk, network
     var id: String { rawValue }
     var label: String {
         switch self {
         case .cpu: return "CPU"
         case .ram: return "RAM"
         case .disk: return "Disk"
+        case .network: return "Network"
         }
     }
     var icon: String {
@@ -16,6 +17,7 @@ enum BarMetric: String, CaseIterable, Identifiable, Codable {
         case .cpu: return "cpu"
         case .ram: return "memorychip"
         case .disk: return "internaldrive"
+        case .network: return "network"
         }
     }
 }
@@ -23,7 +25,7 @@ enum BarMetric: String, CaseIterable, Identifiable, Codable {
 @MainActor
 final class DisplayPreferences: ObservableObject {
     private let key = "menubar.metrics"
-    private static let order: [BarMetric] = [.cpu, .ram, .disk]
+    private static let order: [BarMetric] = [.cpu, .ram, .disk, .network]
 
     @Published private(set) var selected: [BarMetric] = [.cpu]
 
