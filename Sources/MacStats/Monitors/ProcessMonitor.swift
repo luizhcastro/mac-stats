@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 final class ProcessMonitor {
-    struct ProcStat: Identifiable {
+    struct ProcStat: Identifiable, Sendable {
         let id: Int32
         let name: String
         var cpuPercent: Double
@@ -19,9 +19,24 @@ final class ProcessMonitor {
         var diskWritten: UInt64
     }
 
-    private var prior: [Int32: Prior] = [:]
+    private struct ProcessIdentity: Hashable {
+        let pid: Int32
+        let startSeconds: UInt64
+        let startMicroseconds: UInt64
+    }
+
+    private var prior: [ProcessIdentity: Prior] = [:]
     private var lastSampleTime: Date?
     private let coreCount = Double(max(1, Int(Foundation.ProcessInfo.processInfo.activeProcessorCount)))
+    private let rusageBufferSize = max(MemoryLayout<rusage_info_v2>.size, 4096)
+    private let rusageBuffer = UnsafeMutableRawPointer.allocate(
+        byteCount: max(MemoryLayout<rusage_info_v2>.size, 4096),
+        alignment: 16
+    )
+
+    deinit {
+        rusageBuffer.deallocate()
+    }
 
     func sample() -> [ProcStat] {
         let pids = listPids()
@@ -30,11 +45,17 @@ final class ProcessMonitor {
         defer { lastSampleTime = now }
 
         var results: [ProcStat] = []
-        var nextPrior: [Int32: Prior] = [:]
+        var nextPrior: [ProcessIdentity: Prior] = [:]
         results.reserveCapacity(pids.count)
 
         for pid in pids where pid > 0 {
-            guard let task = taskInfo(pid: pid) else { continue }
+            guard let info = taskAllInfo(pid: pid) else { continue }
+            let task = info.ptinfo
+            let identity = ProcessIdentity(
+                pid: pid,
+                startSeconds: info.pbsd.pbi_start_tvsec,
+                startMicroseconds: info.pbsd.pbi_start_tvusec
+            )
             let cpuTimeNs = task.pti_total_user + task.pti_total_system
             let rss = task.pti_resident_size
 
@@ -48,16 +69,18 @@ final class ProcessMonitor {
             var cpuPct = 0.0
             var readRate = 0.0
             var writeRate = 0.0
-            if let p = prior[pid], dt > 0 {
-                let deltaCpu = Double(cpuTimeNs &- p.cpuTimeNs) / 1_000_000_000.0
-                cpuPct = (deltaCpu / dt) * 100 / coreCount
-                readRate = Double(diskRead &- p.diskRead) / dt
-                writeRate = Double(diskWritten &- p.diskWritten) / dt
+            if let p = prior[identity], dt > 0 {
+                if let deltaCpuNs = SamplingMath.delta(current: cpuTimeNs, previous: p.cpuTimeNs) {
+                    let deltaCpu = Double(deltaCpuNs) / 1_000_000_000.0
+                    cpuPct = (deltaCpu / dt) * 100 / coreCount
+                }
+                readRate = SamplingMath.rate(current: diskRead, previous: p.diskRead, dt: dt)
+                writeRate = SamplingMath.rate(current: diskWritten, previous: p.diskWritten, dt: dt)
             }
 
-            nextPrior[pid] = Prior(cpuTimeNs: cpuTimeNs, diskRead: diskRead, diskWritten: diskWritten)
+            nextPrior[identity] = Prior(cpuTimeNs: cpuTimeNs, diskRead: diskRead, diskWritten: diskWritten)
 
-            let name = processName(pid: pid)
+            let name = processName(pid: pid, info: info)
             results.append(ProcStat(
                 id: pid,
                 name: name,
@@ -89,31 +112,36 @@ final class ProcessMonitor {
         return Array(buf.prefix(actual))
     }
 
-    private func taskInfo(pid: Int32) -> proc_taskinfo? {
-        var info = proc_taskinfo()
-        let size = Int32(MemoryLayout<proc_taskinfo>.size)
-        let ret = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &info, size)
+    private func taskAllInfo(pid: Int32) -> proc_taskallinfo? {
+        var info = proc_taskallinfo()
+        let size = Int32(MemoryLayout<proc_taskallinfo>.size)
+        let ret = proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &info, size)
         guard ret == size else { return nil }
         return info
     }
 
     private func rusageInfo(pid: Int32) -> rusage_info_v2? {
-        let bufSize = max(MemoryLayout<rusage_info_v2>.size, 4096)
-        let raw = UnsafeMutableRawPointer.allocate(byteCount: bufSize, alignment: 16)
-        defer { raw.deallocate() }
-        raw.initializeMemory(as: UInt8.self, repeating: 0, count: bufSize)
-        let casted = UnsafeMutablePointer<rusage_info_t?>(OpaquePointer(raw))
+        let casted = UnsafeMutablePointer<rusage_info_t?>(OpaquePointer(rusageBuffer))
         let ret = proc_pid_rusage(pid, RUSAGE_INFO_V2, casted)
         guard ret == 0 else { return nil }
-        return raw.assumingMemoryBound(to: rusage_info_v2.self).pointee
+        return rusageBuffer.assumingMemoryBound(to: rusage_info_v2.self).pointee
     }
 
-    private func processName(pid: Int32) -> String {
-        var buf = [CChar](repeating: 0, count: 1024)
-        let n = proc_name(pid, &buf, UInt32(buf.count))
-        if n > 0 {
-            return String(cString: buf)
+    private func processName(pid: Int32, info: proc_taskallinfo) -> String {
+        if let name = decodeCStringTuple(info.pbsd.pbi_name), !name.isEmpty {
+            return name
+        }
+        if let command = decodeCStringTuple(info.pbsd.pbi_comm), !command.isEmpty {
+            return command
         }
         return "pid:\(pid)"
+    }
+
+    private func decodeCStringTuple<T>(_ tuple: T) -> String? {
+        withUnsafeBytes(of: tuple) { rawBuffer in
+            let end = rawBuffer.firstIndex(of: 0) ?? rawBuffer.count
+            guard end > 0 else { return nil }
+            return String(decoding: rawBuffer.prefix(end), as: UTF8.self)
+        }
     }
 }

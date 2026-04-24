@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 final class MemoryMonitor {
-    struct Sample {
+    struct Sample: Sendable {
         var totalBytes: UInt64
         var usedBytes: UInt64
         var activeBytes: UInt64

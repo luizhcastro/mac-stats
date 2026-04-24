@@ -97,6 +97,7 @@ final class StatusBarController {
     }
 
     private func openPopover(anchoredTo button: NSStatusBarButton) {
+        stats.setDetailSamplingEnabled(true)
         popover.delegate = popoverDelegate
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.becomeKey()
@@ -127,6 +128,7 @@ final class StatusBarController {
     private lazy var popoverDelegate: PopoverDelegate = PopoverDelegate { [weak self] in
         guard let self else { return }
         self.removeOutsideClickMonitor()
+        self.stats.setDetailSamplingEnabled(false)
         if let pending = self.pendingSnapshot {
             self.pendingSnapshot = nil
             self.applySnapshot(pending)

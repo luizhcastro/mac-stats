@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 final class NetworkMonitor {
-    struct Sample {
+    struct Sample: Sendable {
         var bytesInPerSec: Double
         var bytesOutPerSec: Double
         var totalIn: UInt64
@@ -28,8 +28,8 @@ final class NetworkMonitor {
         guard dt > 0 else {
             return Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: totalIn, totalOut: totalOut)
         }
-        let inRate = Double(totalIn &- lastIn) / dt
-        let outRate = Double(totalOut &- lastOut) / dt
+        let inRate = SamplingMath.rate(current: totalIn, previous: lastIn, dt: dt)
+        let outRate = SamplingMath.rate(current: totalOut, previous: lastOut, dt: dt)
         return Sample(bytesInPerSec: inRate, bytesOutPerSec: outRate, totalIn: totalIn, totalOut: totalOut)
     }
 

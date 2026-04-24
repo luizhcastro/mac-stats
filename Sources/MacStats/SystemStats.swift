@@ -1,16 +1,84 @@
 import Foundation
-import Combine
+
+struct ProcessLeaders: Sendable {
+    var cpu: [ProcessMonitor.ProcStat]
+    var memory: [ProcessMonitor.ProcStat]
+    var disk: [ProcessMonitor.ProcStat]
+
+    static let empty = ProcessLeaders(cpu: [], memory: [], disk: [])
+}
+
+struct SystemSnapshot: Sendable {
+    var cpu: CPUMonitor.Sample
+    var memory: MemoryMonitor.Sample
+    var network: NetworkMonitor.Sample
+    var battery: BatteryMonitor.Sample
+    var disk: DiskMonitor.Sample
+    var cpuHistory: [Double]
+    var processLeaders: ProcessLeaders
+
+    static let empty = SystemSnapshot(
+        cpu: CPUMonitor.Sample(usage: 0, user: 0, system: 0, idle: 0),
+        memory: MemoryMonitor.Sample(totalBytes: 0, usedBytes: 0, activeBytes: 0, wiredBytes: 0, compressedBytes: 0, freeBytes: 0, pressurePercent: 0),
+        network: NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0),
+        battery: BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false),
+        disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0),
+        cpuHistory: Array(repeating: 0, count: 60),
+        processLeaders: .empty
+    )
+}
 
 @MainActor
 final class SystemStats: ObservableObject {
-    @Published var cpu = CPUMonitor.Sample(usage: 0, user: 0, system: 0, idle: 0)
-    @Published var memory = MemoryMonitor.Sample(totalBytes: 0, usedBytes: 0, activeBytes: 0, wiredBytes: 0, compressedBytes: 0, freeBytes: 0, pressurePercent: 0)
-    @Published var network = NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0)
-    @Published var battery = BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false)
-    @Published var disk = DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0)
-    @Published var cpuHistory: [Double] = Array(repeating: 0, count: 60)
-    @Published var processes: [ProcessMonitor.ProcStat] = []
-    @Published var networkProcesses: [NetworkProcessMonitor.ProcStat] = []
+    @Published private(set) var snapshot = SystemSnapshot.empty
+
+    private let sampler = StatsSampler()
+    private var samplingTask: Task<Void, Never>?
+
+    var cpu: CPUMonitor.Sample { snapshot.cpu }
+    var memory: MemoryMonitor.Sample { snapshot.memory }
+    var network: NetworkMonitor.Sample { snapshot.network }
+    var battery: BatteryMonitor.Sample { snapshot.battery }
+    var disk: DiskMonitor.Sample { snapshot.disk }
+    var cpuHistory: [Double] { snapshot.cpuHistory }
+    var processLeaders: ProcessLeaders { snapshot.processLeaders }
+
+    init() {
+        samplingTask = Task { [weak self] in
+            await self?.refresh()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { break }
+                await self?.refresh()
+            }
+        }
+    }
+
+    deinit { samplingTask?.cancel() }
+
+    func setDetailSamplingEnabled(_ enabled: Bool) {
+        if enabled {
+            Task { [weak self] in
+                guard let self else { return }
+                await sampler.setDetailSamplingEnabled(true)
+                await refresh(forceDetailRefresh: true)
+            }
+            return
+        }
+
+        Task { [sampler] in
+            await sampler.setDetailSamplingEnabled(false)
+        }
+    }
+
+    private func refresh(forceDetailRefresh: Bool = false) async {
+        snapshot = await sampler.sample(forceDetailRefresh: forceDetailRefresh)
+    }
+}
+
+private actor StatsSampler {
+    private static let processRefreshIntervalTicks = 2
+    private static let batteryRefreshIntervalTicks = 30
 
     private let cpuMonitor = CPUMonitor()
     private let memoryMonitor = MemoryMonitor()
@@ -18,44 +86,74 @@ final class SystemStats: ObservableObject {
     private let batteryMonitor = BatteryMonitor()
     private let diskMonitor = DiskMonitor()
     private let processMonitor = ProcessMonitor()
-    private let netProcMonitor = NetworkProcessMonitor()
-    private var timer: Timer?
     private var tickCount = 0
-    private var cancellables: Set<AnyCancellable> = []
+    private var detailSamplingEnabled = false
+    private var cpuHistory = Array(repeating: 0.0, count: 60)
+    private var lastBattery = BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false)
+    private var lastBatterySampleTick: Int?
+    private var lastProcessLeaders = ProcessLeaders.empty
 
     init() {
         _ = cpuMonitor.sample()
         _ = networkMonitor.sample()
-        _ = diskMonitor.sample()
-        _ = processMonitor.sample()
-        tick()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
-        }
-        netProcMonitor.$processes
-            .sink { [weak self] value in
-                self?.networkProcesses = value
-            }
-            .store(in: &cancellables)
-        netProcMonitor.trigger()
+        _ = diskMonitor.sample(includeVolumeStats: false)
     }
 
-    deinit { timer?.invalidate() }
+    func setDetailSamplingEnabled(_ enabled: Bool) {
+        detailSamplingEnabled = enabled
+    }
 
-    private func tick() {
-        cpu = cpuMonitor.sample()
-        memory = memoryMonitor.sample()
-        network = networkMonitor.sample()
-        battery = batteryMonitor.sample()
-        disk = diskMonitor.sample()
+    func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {
+        let cpu = cpuMonitor.sample()
+        let memory = memoryMonitor.sample()
+        let network = networkMonitor.sample()
+        let disk = diskMonitor.sample(
+            includeVolumeStats: detailSamplingEnabled,
+            forceVolumeStatsRefresh: forceDetailRefresh
+        )
+
+        tickCount += 1
         cpuHistory.removeFirst()
         cpuHistory.append(cpu.usage)
-        tickCount += 1
-        if tickCount % 2 == 0 {
-            processes = processMonitor.sample()
+
+        if detailSamplingEnabled && shouldRefreshBattery(force: forceDetailRefresh) {
+            lastBattery = batteryMonitor.sample()
+            lastBatterySampleTick = tickCount
         }
-        if tickCount % 4 == 0 {
-            netProcMonitor.trigger()
+
+        if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
+            let processes = processMonitor.sample()
+            lastProcessLeaders = buildProcessLeaders(from: processes, limit: 8)
         }
+
+        return SystemSnapshot(
+            cpu: cpu,
+            memory: memory,
+            network: network,
+            battery: lastBattery,
+            disk: disk,
+            cpuHistory: cpuHistory,
+            processLeaders: lastProcessLeaders
+        )
+    }
+
+    private func shouldRefreshBattery(force: Bool) -> Bool {
+        if force { return true }
+        guard let lastBatterySampleTick else { return true }
+        return tickCount - lastBatterySampleTick >= Self.batteryRefreshIntervalTicks
+    }
+
+    private func shouldRefreshProcesses(force: Bool) -> Bool {
+        force || tickCount % Self.processRefreshIntervalTicks == 0
+    }
+
+    private func buildProcessLeaders(from processes: [ProcessMonitor.ProcStat], limit: Int) -> ProcessLeaders {
+        ProcessLeaders(
+            cpu: Array(processes.sorted { $0.cpuPercent > $1.cpuPercent }.prefix(limit)),
+            memory: Array(processes.sorted { $0.memoryBytes > $1.memoryBytes }.prefix(limit)),
+            disk: Array(processes.sorted {
+                ($0.diskReadPerSec + $0.diskWritePerSec) > ($1.diskReadPerSec + $1.diskWritePerSec)
+            }.prefix(limit))
+        )
     }
 }

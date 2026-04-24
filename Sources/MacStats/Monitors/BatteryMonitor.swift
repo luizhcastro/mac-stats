@@ -2,7 +2,7 @@ import Foundation
 import IOKit.ps
 
 final class BatteryMonitor {
-    struct Sample {
+    struct Sample: Sendable {
         var percent: Double
         var isCharging: Bool
         var isPluggedIn: Bool

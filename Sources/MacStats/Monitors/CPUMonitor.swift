@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 final class CPUMonitor {
-    struct Sample {
+    struct Sample: Sendable {
         var usage: Double
         var user: Double
         var system: Double
