@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="clip">
+      <path d="M512,0 C181,0 0,181 0,512 C0,843 181,1024 512,1024 C843,1024 1024,843 1024,512 C1024,181 843,0 512,0 Z"></path>
+    </clipPath>
+    <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a4f57"></stop>
+      <stop offset="0.5" stop-color="#2a2e35"></stop>
+      <stop offset="1" stop-color="#14161a"></stop>
+    </linearGradient>
+    <radialGradient id="refract" cx="0.25" cy="0.2" r="0.9">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"></stop>
+      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.12"></stop>
+      <stop offset="0.75" stop-color="#ffffff" stop-opacity="0"></stop>
+    </radialGradient>
+    <radialGradient id="depth" cx="0.75" cy="0.8" r="0.7">
+      <stop offset="0.45" stop-color="#000" stop-opacity="0"></stop>
+      <stop offset="1" stop-color="#000" stop-opacity="0.35"></stop>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"></stop>
+      <stop offset="0.08" stop-color="#ffffff" stop-opacity="0.15"></stop>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"></stop>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop>
+    </linearGradient>
+    <linearGradient id="r1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"></stop>
+      <stop offset="1" stop-color="#b9bec6"></stop>
+    </linearGradient>
+    <linearGradient id="r2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d6dae1"></stop>
+      <stop offset="1" stop-color="#7a7f87"></stop>
+    </linearGradient>
+    <linearGradient id="r3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a0a4ac"></stop>
+      <stop offset="1" stop-color="#515660"></stop>
+    </linearGradient>
+    <linearGradient id="spec" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"></stop>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"></stop>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <path d="M512,0 C181,0 0,181 0,512 C0,843 181,1024 512,1024 C843,1024 1024,843 1024,512 C1024,181 843,0 512,0 Z" fill="url(#base)"></path>
+    <path d="M512,0 C181,0 0,181 0,512 C0,843 181,1024 512,1024 C843,1024 1024,843 1024,512 C1024,181 843,0 512,0 Z" fill="url(#refract)"></path>
+
+    
+    <g transform="rotate(-90 512 512)">
+      <circle cx="512" cy="512" r="310" fill="none" stroke="rgba(0,0,0,0.22)" stroke-width="54"></circle>
+      <circle cx="512" cy="512" r="310" fill="none" stroke="url(#r1)" stroke-width="54" stroke-linecap="round" stroke-dasharray="1441.15 1947.79"></circle>
+      <circle cx="512" cy="512" r="310" fill="none" stroke="url(#spec)" stroke-width="48" stroke-linecap="round" stroke-dasharray="648.52 1947.79" opacity="0.85"></circle>
+    </g>
+    
+    <g transform="rotate(-90 512 512)">
+      <circle cx="512" cy="512" r="236" fill="none" stroke="rgba(0,0,0,0.22)" stroke-width="54"></circle>
+      <circle cx="512" cy="512" r="236" fill="none" stroke="url(#r2)" stroke-width="54" stroke-linecap="round" stroke-dasharray="860.09 1482.92"></circle>
+      <circle cx="512" cy="512" r="236" fill="none" stroke="url(#spec)" stroke-width="48" stroke-linecap="round" stroke-dasharray="387.04 1482.92" opacity="0.85"></circle>
+    </g>
+    
+    <g transform="rotate(-90 512 512)">
+      <circle cx="512" cy="512" r="162" fill="none" stroke="rgba(0,0,0,0.22)" stroke-width="54"></circle>
+      <circle cx="512" cy="512" r="162" fill="none" stroke="url(#r3)" stroke-width="54" stroke-linecap="round" stroke-dasharray="407.15 1017.88"></circle>
+      <circle cx="512" cy="512" r="162" fill="none" stroke="url(#spec)" stroke-width="48" stroke-linecap="round" stroke-dasharray="183.22 1017.88" opacity="0.85"></circle>
+    </g>
+
+    
+    <circle cx="512" cy="512" r="70" fill="rgba(255,255,255,0.12)"></circle>
+    <circle cx="512" cy="512" r="70" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2"></circle>
+    <circle cx="490" cy="490" r="20" fill="rgba(255,255,255,0.5)"></circle>
+
+    <path d="M512,0 C181,0 0,181 0,512 C0,843 181,1024 512,1024 C843,1024 1024,843 1024,512 C1024,181 843,0 512,0 Z" fill="url(#depth)"></path>
+  </g>
+
+  <path d="M512,0 C181,0 0,181 0,512 C0,843 181,1024 512,1024 C843,1024 1024,843 1024,512 C1024,181 843,0 512,0 Z" fill="none" stroke="url(#rim)" stroke-width="4"></path>
+  <path d="M512,0 C181,0 0,181 0,512 C0,843 181,1024 512,1024 C843,1024 1024,843 1024,512 C1024,181 843,0 512,0 Z" fill="none" stroke="rgba(0,0,0,0.4)" stroke-width="1.5"></path>
+</svg>
