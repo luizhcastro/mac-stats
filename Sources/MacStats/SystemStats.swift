@@ -10,6 +10,7 @@ final class SystemStats: ObservableObject {
     @Published var disk = DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0)
     @Published var cpuHistory: [Double] = Array(repeating: 0, count: 60)
     @Published var processes: [ProcessMonitor.ProcStat] = []
+    @Published var networkProcesses: [NetworkProcessMonitor.ProcStat] = []
 
     private let cpuMonitor = CPUMonitor()
     private let memoryMonitor = MemoryMonitor()
@@ -17,8 +18,10 @@ final class SystemStats: ObservableObject {
     private let batteryMonitor = BatteryMonitor()
     private let diskMonitor = DiskMonitor()
     private let processMonitor = ProcessMonitor()
+    private let netProcMonitor = NetworkProcessMonitor()
     private var timer: Timer?
     private var tickCount = 0
+    private var cancellables: Set<AnyCancellable> = []
 
     init() {
         _ = cpuMonitor.sample()
@@ -29,6 +32,12 @@ final class SystemStats: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
+        netProcMonitor.$processes
+            .sink { [weak self] value in
+                self?.networkProcesses = value
+            }
+            .store(in: &cancellables)
+        netProcMonitor.trigger()
     }
 
     deinit { timer?.invalidate() }
@@ -44,6 +53,9 @@ final class SystemStats: ObservableObject {
         tickCount += 1
         if tickCount % 2 == 0 {
             processes = processMonitor.sample()
+        }
+        if tickCount % 4 == 0 {
+            netProcMonitor.trigger()
         }
     }
 }
