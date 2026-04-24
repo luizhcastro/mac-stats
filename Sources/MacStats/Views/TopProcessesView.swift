@@ -8,6 +8,7 @@ struct TopProcessesView: View {
         case cpu = "CPU"
         case memory = "RAM"
         case disk = "Disk"
+        case network = "Net"
         var id: String { rawValue }
     }
 
@@ -21,19 +22,35 @@ struct TopProcessesView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            ForEach(topN(8)) { proc in
-                HStack {
-                    Text(proc.name)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Spacer()
-                    Text(value(for: proc))
-                        .monospacedDigit()
+            if tab == .network {
+                ForEach(topNetwork(8)) { proc in
+                    row(name: proc.name, value: Fmt.rate(proc.bytesInPerSec + proc.bytesOutPerSec))
+                }
+                if stats.networkProcesses.isEmpty {
+                    Text("Collecting…")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                .font(.caption)
+            } else {
+                ForEach(topN(8)) { proc in
+                    row(name: proc.name, value: processValue(proc))
+                }
             }
         }
+    }
+
+    @ViewBuilder
+    private func row(name: String, value: String) -> some View {
+        HStack {
+            Text(name)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer()
+            Text(value)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption)
     }
 
     private func topN(_ n: Int) -> [ProcessMonitor.ProcStat] {
@@ -47,15 +64,25 @@ struct TopProcessesView: View {
             sorted = stats.processes.sorted {
                 ($0.diskReadPerSec + $0.diskWritePerSec) > ($1.diskReadPerSec + $1.diskWritePerSec)
             }
+        case .network:
+            sorted = []
         }
         return Array(sorted.prefix(n))
     }
 
-    private func value(for proc: ProcessMonitor.ProcStat) -> String {
+    private func topNetwork(_ n: Int) -> [NetworkProcessMonitor.ProcStat] {
+        let sorted = stats.networkProcesses.sorted {
+            ($0.bytesInPerSec + $0.bytesOutPerSec) > ($1.bytesInPerSec + $1.bytesOutPerSec)
+        }
+        return Array(sorted.prefix(n))
+    }
+
+    private func processValue(_ proc: ProcessMonitor.ProcStat) -> String {
         switch tab {
         case .cpu: return String(format: "%.2f%%", proc.cpuPercent)
         case .memory: return Fmt.bytes(proc.memoryBytes)
         case .disk: return Fmt.rate(proc.diskReadPerSec + proc.diskWritePerSec)
+        case .network: return ""
         }
     }
 }
