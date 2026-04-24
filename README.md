@@ -20,10 +20,10 @@ The macOS Activity Monitor is heavy and hidden in `/Applications/Utilities`. iSt
 
 ## Features
 
-- **Menu bar at-a-glance** — CPU %, memory used (GB), and disk I/O rate, each with its own icon. Pick any combination; the bar auto-sizes.
+- **Menu bar at-a-glance** — CPU %, memory used (GB), and disk I/O rate. Each metric is a separate status item, so macOS hides them individually when the menu bar gets crowded instead of dropping the whole group.
 - **Dropdown detail** — live readouts for CPU (user / system / idle + sparkline), memory pressure, network up/down, disk R/W, battery state, and a tabbed list of top processes by CPU / RAM / Disk.
 - **Per-process insight** — top 8 apps by any metric, updated every 2 s via `libproc`.
-- **Stable UI** — fixed-width metric slots, Apple system menu font, frozen layout while the dropdown is open (no jitter when toggling).
+- **Stable UI** — fixed-width metric slots, Apple system menu font, frozen layout while the dropdown is open (no jitter when toggling), popover closes on any outside click.
 - **Native** — Swift + SwiftUI + AppKit. No Electron, no Python, no daemons. Idles around 70 MB RAM, < 1% CPU.
 - **Zero config** — no accounts, no telemetry, no network calls.
 
@@ -93,13 +93,28 @@ All public APIs. No SIP bypass, no kexts, no private entitlements.
 ```
 Sources/MacStats/
 ├── MacStatsApp.swift          # @main, AppDelegate
-├── StatusBarController.swift  # NSStatusItem + popover
-├── SystemStats.swift          # tick loop, aggregate monitors
-├── DisplayPreferences.swift   # which metrics show in the bar
-├── MenuBarSnapshot.swift      # frozen prefs for the status item
+├── StatusBarController.swift  # one NSStatusItem per metric, shared NSPopover
+├── SystemStats.swift          # 1 s tick loop, aggregates every monitor
+├── DisplayPreferences.swift   # which metrics show in the bar (UserDefaults)
+├── MenuBarSnapshot.swift      # frozen copy of prefs while the popover is open
 ├── Formatters.swift
 ├── Monitors/                  # one sampler per hardware domain
-└── Views/                     # SwiftUI label + dropdown content
+│   ├── CPUMonitor.swift
+│   ├── MemoryMonitor.swift
+│   ├── NetworkMonitor.swift
+│   ├── DiskMonitor.swift
+│   ├── BatteryMonitor.swift
+│   └── ProcessMonitor.swift
+└── Views/
+    ├── SingleMetricLabel.swift   # one metric in the menu bar (icon + compact value)
+    ├── MenuBarContentView.swift  # dropdown content
+    ├── MenuBarPrefsView.swift    # menu bar metric checkboxes
+    └── TopProcessesView.swift    # tabbed top processes
+
+Resources/
+└── AppIcon.icns               # bundled into the .app by Scripts/bundle.sh
+
+design_handoff_macstats_logo/  # canonical icon source (SVG + sized PNGs + README)
 ```
 
 See [`CLAUDE.md`](./CLAUDE.md) for architecture notes, tricky Darwin API shapes, and guidance for AI agents working on the codebase.
