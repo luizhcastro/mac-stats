@@ -88,15 +88,6 @@ All public APIs. No SIP bypass, no kexts, no private entitlements.
 - **Not yet signed / notarized.** Installation requires a Gatekeeper override (see above).
 - **Apple Silicon only** in current releases.
 
-## Roadmap
-
-- [ ] Apple Developer ID signing + notarization for frictionless install
-- [ ] Universal binary (arm64 + x86_64)
-- [ ] Launch at login (`SMAppService`)
-- [ ] Auto-update via Sparkle
-- [ ] Optional per-process network (nettop shell-out, opt-in)
-- [ ] Temperature sensors (SMC) — under evaluation
-
 ## Project layout
 
 ```
