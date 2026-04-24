@@ -8,13 +8,15 @@ final class StatusBarController {
     private let popover: NSPopover
     private let stats: SystemStats
     private let prefs: DisplayPreferences
+    private let snapshot: MenuBarSnapshot
     private var hostingView: NSHostingView<MenuBarLabel>?
     private var cancellables: Set<AnyCancellable> = []
-    private var pendingResize = false
+    private var pendingSnapshot: [BarMetric]?
 
     init(stats: SystemStats, prefs: DisplayPreferences) {
         self.stats = stats
         self.prefs = prefs
+        self.snapshot = MenuBarSnapshot(selected: prefs.selected)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
@@ -27,34 +29,42 @@ final class StatusBarController {
 
         configureButton()
 
-        prefs.objectWillChange
-            .sink { [weak self] _ in
+        prefs.$selected
+            .dropFirst()
+            .sink { [weak self] newValue in
                 DispatchQueue.main.async {
-                    self?.requestResize()
+                    self?.handlePrefsChange(newValue)
                 }
             }
             .store(in: &cancellables)
     }
 
-    private func requestResize() {
+    private func handlePrefsChange(_ newValue: [BarMetric]) {
         if popover.isShown {
-            pendingResize = true
+            pendingSnapshot = newValue
         } else {
-            resizeButton()
+            applySnapshot(newValue)
         }
+    }
+
+    private func applySnapshot(_ newValue: [BarMetric]) {
+        snapshot.selected = newValue
+        resizeButton()
     }
 
     private func configureButton() {
         guard let button = statusItem.button else { return }
-        let label = MenuBarLabel(stats: stats, prefs: prefs)
+        let label = MenuBarLabel(stats: stats, snapshot: snapshot)
         let host = NSHostingView(rootView: label)
         host.translatesAutoresizingMaskIntoConstraints = false
         button.subviews.forEach { $0.removeFromSuperview() }
         button.addSubview(host)
+        let barHeight = NSStatusBar.system.thickness
         NSLayoutConstraint.activate([
             host.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 6),
             host.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -6),
-            host.centerYAnchor.constraint(equalTo: button.centerYAnchor)
+            host.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+            host.heightAnchor.constraint(equalToConstant: barHeight)
         ])
         hostingView = host
         button.target = self
@@ -65,8 +75,9 @@ final class StatusBarController {
     private func resizeButton() {
         guard let host = hostingView else { return }
         host.layoutSubtreeIfNeeded()
-        let fitting = host.fittingSize
-        statusItem.length = fitting.width + 12
+        let fitting = host.intrinsicContentSize
+        let width = max(fitting.width, host.fittingSize.width)
+        statusItem.length = width + 12
     }
 
     @objc private func togglePopover(_ sender: Any?) {
@@ -82,9 +93,9 @@ final class StatusBarController {
 
     private lazy var popoverDelegate: PopoverDelegate = PopoverDelegate { [weak self] in
         guard let self else { return }
-        if self.pendingResize {
-            self.pendingResize = false
-            self.resizeButton()
+        if let pending = self.pendingSnapshot {
+            self.pendingSnapshot = nil
+            self.applySnapshot(pending)
         }
     }
 }
