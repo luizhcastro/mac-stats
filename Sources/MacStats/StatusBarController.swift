@@ -4,21 +4,19 @@ import Combine
 
 @MainActor
 final class StatusBarController {
-    private let statusItem: NSStatusItem
     private let popover: NSPopover
     private let stats: SystemStats
     private let prefs: DisplayPreferences
     private let snapshot: MenuBarSnapshot
-    private var hostingView: NSHostingView<MenuBarLabel>?
+    private var statusItems: [BarMetric: NSStatusItem] = [:]
     private var cancellables: Set<AnyCancellable> = []
     private var pendingSnapshot: [BarMetric]?
+    private var outsideClickMonitor: Any?
 
     init(stats: SystemStats, prefs: DisplayPreferences) {
         self.stats = stats
         self.prefs = prefs
         self.snapshot = MenuBarSnapshot(selected: prefs.selected)
-
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         popover = NSPopover()
         popover.behavior = .transient
@@ -27,7 +25,8 @@ final class StatusBarController {
             rootView: MenuBarContentView(stats: stats, prefs: prefs)
         )
 
-        configureButton()
+        buildAllStatusItems()
+        applyVisibility()
 
         prefs.$selected
             .dropFirst()
@@ -37,6 +36,43 @@ final class StatusBarController {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func buildAllStatusItems() {
+        let order: [BarMetric] = [.disk, .ram, .cpu]
+        for metric in order {
+            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            item.autosaveName = "macstats.\(metric.rawValue)"
+            guard let button = item.button else { continue }
+
+            let label = SingleMetricLabel(stats: stats, metric: metric)
+            let host = NSHostingView(rootView: label)
+            host.translatesAutoresizingMaskIntoConstraints = false
+            button.subviews.forEach { $0.removeFromSuperview() }
+            button.addSubview(host)
+            NSLayoutConstraint.activate([
+                host.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 0),
+                host.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: 0),
+                host.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+                host.heightAnchor.constraint(equalToConstant: NSStatusBar.system.thickness)
+            ])
+
+            host.layoutSubtreeIfNeeded()
+            let fitting = max(host.intrinsicContentSize.width, host.fittingSize.width)
+            item.length = fitting
+
+            button.target = self
+            button.action = #selector(statusItemClicked(_:))
+
+            statusItems[metric] = item
+        }
+    }
+
+    private func applyVisibility() {
+        let selected = Set(snapshot.selected)
+        for (metric, item) in statusItems {
+            item.isVisible = selected.contains(metric)
+        }
     }
 
     private func handlePrefsChange(_ newValue: [BarMetric]) {
@@ -49,50 +85,48 @@ final class StatusBarController {
 
     private func applySnapshot(_ newValue: [BarMetric]) {
         snapshot.selected = newValue
-        resizeButton()
+        applyVisibility()
     }
 
-    private func configureButton() {
-        guard let button = statusItem.button else { return }
-        let label = MenuBarLabel(stats: stats, snapshot: snapshot)
-        let host = NSHostingView(rootView: label)
-        host.translatesAutoresizingMaskIntoConstraints = false
-        button.subviews.forEach { $0.removeFromSuperview() }
-        button.addSubview(host)
-        let barHeight = NSStatusBar.system.thickness
-        NSLayoutConstraint.activate([
-            host.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 6),
-            host.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -6),
-            host.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-            host.heightAnchor.constraint(equalToConstant: barHeight)
-        ])
-        hostingView = host
-        button.target = self
-        button.action = #selector(togglePopover(_:))
-        resizeButton()
-    }
-
-    private func resizeButton() {
-        guard let host = hostingView else { return }
-        host.layoutSubtreeIfNeeded()
-        let fitting = host.intrinsicContentSize
-        let width = max(fitting.width, host.fittingSize.width)
-        statusItem.length = width + 12
-    }
-
-    @objc private func togglePopover(_ sender: Any?) {
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         if popover.isShown {
-            popover.performClose(sender)
+            closePopover()
             return
         }
-        guard let button = statusItem.button else { return }
+        openPopover(anchoredTo: sender)
+    }
+
+    private func openPopover(anchoredTo button: NSStatusBarButton) {
         popover.delegate = popoverDelegate
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.becomeKey()
+        installOutsideClickMonitor()
+    }
+
+    private func closePopover() {
+        popover.performClose(nil)
+        removeOutsideClickMonitor()
+    }
+
+    private func installOutsideClickMonitor() {
+        removeOutsideClickMonitor()
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            Task { @MainActor in
+                self?.closePopover()
+            }
+        }
+    }
+
+    private func removeOutsideClickMonitor() {
+        if let monitor = outsideClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            outsideClickMonitor = nil
+        }
     }
 
     private lazy var popoverDelegate: PopoverDelegate = PopoverDelegate { [weak self] in
         guard let self else { return }
+        self.removeOutsideClickMonitor()
         if let pending = self.pendingSnapshot {
             self.pendingSnapshot = nil
             self.applySnapshot(pending)
