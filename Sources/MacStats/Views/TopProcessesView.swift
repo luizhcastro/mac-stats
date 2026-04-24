@@ -53,7 +53,7 @@ struct TopProcessesView: View {
 
     private func value(for proc: ProcessMonitor.ProcStat) -> String {
         switch tab {
-        case .cpu: return String(format: "%.1f%%", proc.cpuPercent)
+        case .cpu: return String(format: "%.2f%%", proc.cpuPercent)
         case .memory: return Fmt.bytes(proc.memoryBytes)
         case .disk: return Fmt.rate(proc.diskReadPerSec + proc.diskWritePerSec)
         }
