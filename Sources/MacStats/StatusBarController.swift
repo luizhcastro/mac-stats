@@ -39,7 +39,7 @@ final class StatusBarController {
     }
 
     private func buildAllStatusItems() {
-        let order: [BarMetric] = [.disk, .ram, .cpu]
+        let order: [BarMetric] = [.network, .disk, .ram, .cpu]
         for metric in order {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             item.autosaveName = "macstats.\(metric.rawValue)"
