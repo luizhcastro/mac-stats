@@ -20,11 +20,12 @@ The macOS Activity Monitor is heavy and hidden in `/Applications/Utilities`. iSt
 
 ## Features
 
-- **Menu bar at-a-glance** — CPU %, memory used (GB), and disk I/O rate. Each metric is a separate status item, so macOS hides them individually when the menu bar gets crowded instead of dropping the whole group.
+- **Menu bar at-a-glance** — CPU %, memory used (GB), disk I/O rate, and network rate. Each metric is a separate status item, so macOS hides them individually when the menu bar gets crowded instead of dropping the whole group.
 - **Dropdown detail** — live readouts for CPU (user / system / idle + sparkline), memory pressure, network up/down, disk R/W, battery state, and a tabbed list of top processes by CPU / RAM / Disk.
-- **Per-process insight** — top 8 apps by any metric, updated every 2 s via `libproc`.
+- **Per-process insight** — top 8 apps by any metric, sorted server-side in a background actor via `libproc`.
+- **Low idle cost** — expensive probes (process iteration, IOKit battery, volume capacity XPC) only run while the dropdown is open. With the popover closed, the app samples only cheap counters (CPU ticks, RAM, network, disk I/O) on a background actor. Typical idle: around 70 MB RAM, well under 1% CPU.
 - **Stable UI** — fixed-width metric slots, Apple system menu font, frozen layout while the dropdown is open (no jitter when toggling), popover closes on any outside click.
-- **Native** — Swift + SwiftUI + AppKit. No Electron, no Python, no daemons. Idles around 70 MB RAM, < 1% CPU.
+- **Native** — Swift 6 (strict concurrency) + SwiftUI + AppKit. No Electron, no Python, no daemons, no third-party packages.
 - **Zero config** — no accounts, no telemetry, no network calls.
 
 ## Screenshot
@@ -94,7 +95,7 @@ All public APIs. No SIP bypass, no kexts, no private entitlements.
 Sources/MacStats/
 ├── MacStatsApp.swift          # @main, AppDelegate
 ├── StatusBarController.swift  # one NSStatusItem per metric, shared NSPopover
-├── SystemStats.swift          # 1 s tick loop, aggregates every monitor
+├── SystemStats.swift          # @MainActor ObservableObject + background sampling actor
 ├── DisplayPreferences.swift   # which metrics show in the bar (UserDefaults)
 ├── MenuBarSnapshot.swift      # frozen copy of prefs while the popover is open
 ├── Formatters.swift
@@ -104,7 +105,8 @@ Sources/MacStats/
 │   ├── NetworkMonitor.swift
 │   ├── DiskMonitor.swift
 │   ├── BatteryMonitor.swift
-│   └── ProcessMonitor.swift
+│   ├── ProcessMonitor.swift
+│   └── SamplingMath.swift     # shared delta / rate helpers
 └── Views/
     ├── SingleMetricLabel.swift   # one metric in the menu bar (icon + compact value)
     ├── MenuBarContentView.swift  # dropdown content
@@ -117,7 +119,7 @@ Resources/
 design_handoff_macstats_logo/  # canonical icon source (SVG + sized PNGs + README)
 ```
 
-See [`CLAUDE.md`](./CLAUDE.md) for architecture notes, tricky Darwin API shapes, and guidance for AI agents working on the codebase.
+See [`CLAUDE.md`](./CLAUDE.md) (mirrored at [`AGENTS.md`](./AGENTS.md)) for architecture notes, the popover-driven detail sampling design, tricky Darwin API shapes (`proc_pid_rusage`, `ProcessIdentity`), and guidance for AI agents working on the codebase.
 
 ## Contributing
 
