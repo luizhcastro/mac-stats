@@ -9,6 +9,7 @@ struct TopProcessesView: View {
         case memory = "RAM"
         case disk = "Disk"
         case network = "Net"
+        case energy = "Energy"
         var id: String { rawValue }
     }
 
@@ -27,6 +28,11 @@ struct TopProcessesView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .onAppear { stats.setEnergyTrackingEnabled(tab == .energy) }
+            .onChange(of: tab) { newValue in
+                stats.setEnergyTrackingEnabled(newValue == .energy)
+            }
+            .onDisappear { stats.setEnergyTrackingEnabled(false) }
 
             RowsList(rows: rows(8))
                 .equatable()
@@ -50,6 +56,10 @@ struct TopProcessesView: View {
         case .network:
             return stats.processLeaders.network.prefix(n).map {
                 Row(id: "\($0.id)", name: $0.name, value: Fmt.rate($0.bytesInPerSec + $0.bytesOutPerSec))
+            }
+        case .energy:
+            return stats.processLeaders.energy.prefix(n).map {
+                Row(id: "\($0.id)", name: $0.name, value: String(format: "%.1f EI", $0.energyImpact))
             }
         }
     }

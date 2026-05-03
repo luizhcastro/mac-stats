@@ -115,11 +115,11 @@ Without this, the status item layout would shift during a popover session, causi
 
 macOS does not expose per-process network counters through libproc. The two stable paths are NEPacketTunnelProvider (needs entitlements + root) and parsing `nettop` output. We use the latter.
 
-`NetworkProcessMonitor` spawns `/usr/bin/nettop -P -x -J bytes_in,bytes_out -L 1 -n` (single snapshot, CSV, no DNS). Output rows are `time,name.pid,bytes_in,bytes_out,`. Parse: split on `,`, then split the second field on its **last** `.` because process names can themselves contain dots (e.g. `2.1.126.84762`).
+`NetworkProcessMonitor` spawns `/usr/bin/nettop -P -x -J bytes_in,bytes_out -s 2 -n -L 0` as a long-running streaming process and parses snapshots delimited by `time,…` header lines. Output rows are `time,name.pid,bytes_in,bytes_out,`. Parse: split on `,`, then split the second field on its **last** `.` because process names can themselves contain dots (e.g. `2.1.126.84762`).
 
-Counters are cumulative bytes since process start, so we delta against the previous sample. Cache key is `pid` + name match — if the name changes between samples we treat it as a recycled PID and reset baseline (no spurious huge delta).
+Critical: nettop **block-buffers stdout when its output is not a TTY**. Spawning it with a regular `Pipe()` produces zero output until the buffer fills (which can take minutes), so the network tab appears empty. Allocate a PTY via `openpty()` and pass the slave fd as the process's `standardOutput` (and `standardInput`). Read from the master `FileHandle` via `readabilityHandler`. The line discipline forces line-buffered flushes. Side effect: lines are terminated with `\r\n` instead of `\n` — the trailing `\r` lands after the 4th comma so the field parsers are unaffected, and the header marker `"time,"` still matches at position 0.
 
-Sampling only happens inside the detail tier (popover open) and only every `processRefreshIntervalTicks` ticks, same cadence as the libproc process iteration. `nettop` runs in ~10 ms on this machine.
+Counters are cumulative bytes since process start, so we delta against the previous sample. Cache key is `pid` + name match — if the name changes between samples we treat it as a recycled PID and reset baseline (no spurious huge delta). The streaming process is started in `setDetailSamplingEnabled(true)` and terminated on `setDetailSamplingEnabled(false)`, so it only runs while the popover is open.
 
 ### `proc_pid_rusage` pointer shape
 

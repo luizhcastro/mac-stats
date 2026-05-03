@@ -11,15 +11,20 @@ final class ProcessMonitor {
         var diskBytesWritten: UInt64
         var diskReadPerSec: Double
         var diskWritePerSec: Double
+        var wakeupsPerSec: Double
+        var energyImpact: Double
     }
 
     private struct Prior {
         var cpuTimeNs: UInt64
         var diskRead: UInt64
         var diskWritten: UInt64
+        var wakeups: UInt64
         var tick: UInt64
         var name: String
     }
+
+    private static let idleWakeupEnergyCost = 0.39
 
     private struct ProcessIdentity: Hashable {
         let pid: Int32
@@ -31,6 +36,7 @@ final class ProcessMonitor {
     private var currentTick: UInt64 = 0
     private var lastSampleTime: Date?
     private var staleScratch: [ProcessIdentity] = []
+    private var trackEnergy = false
     private let coreCount = Double(max(1, Int(Foundation.ProcessInfo.processInfo.activeProcessorCount)))
     private let rusageBufferSize = max(MemoryLayout<rusage_info_v2>.size, 4096)
     private let rusageBuffer = UnsafeMutableRawPointer.allocate(
@@ -40,6 +46,10 @@ final class ProcessMonitor {
 
     deinit {
         rusageBuffer.deallocate()
+    }
+
+    func setEnergyTrackingEnabled(_ enabled: Bool) {
+        trackEnergy = enabled
     }
 
     func sample() -> [ProcStat] {
@@ -65,14 +75,19 @@ final class ProcessMonitor {
 
             var diskRead: UInt64 = 0
             var diskWritten: UInt64 = 0
+            var wakeups: UInt64 = 0
             if let usage = rusageInfo(pid: pid) {
                 diskRead = usage.ri_diskio_bytesread
                 diskWritten = usage.ri_diskio_byteswritten
+                if trackEnergy {
+                    wakeups = usage.ri_pkg_idle_wkups &+ usage.ri_interrupt_wkups
+                }
             }
 
             var cpuPct = 0.0
             var readRate = 0.0
             var writeRate = 0.0
+            var wakeupsRate = 0.0
             let cachedName: String?
             if let p = prior[identity] {
                 cachedName = p.name
@@ -83,6 +98,9 @@ final class ProcessMonitor {
                     }
                     readRate = SamplingMath.rate(current: diskRead, previous: p.diskRead, dt: dt)
                     writeRate = SamplingMath.rate(current: diskWritten, previous: p.diskWritten, dt: dt)
+                    if trackEnergy {
+                        wakeupsRate = SamplingMath.rate(current: wakeups, previous: p.wakeups, dt: dt)
+                    }
                 }
             } else {
                 cachedName = nil
@@ -93,19 +111,26 @@ final class ProcessMonitor {
                 cpuTimeNs: cpuTimeNs,
                 diskRead: diskRead,
                 diskWritten: diskWritten,
+                wakeups: wakeups,
                 tick: currentTick,
                 name: name
             )
 
+            let cpuPctClamped = max(0, cpuPct)
+            let wakeupsClamped = trackEnergy ? max(0, wakeupsRate) : 0
+            let energyImpact = trackEnergy ? cpuPctClamped + wakeupsClamped * Self.idleWakeupEnergyCost : 0
+
             results.append(ProcStat(
                 id: pid,
                 name: name,
-                cpuPercent: max(0, cpuPct),
+                cpuPercent: cpuPctClamped,
                 memoryBytes: rss,
                 diskBytesRead: diskRead,
                 diskBytesWritten: diskWritten,
                 diskReadPerSec: max(0, readRate),
-                diskWritePerSec: max(0, writeRate)
+                diskWritePerSec: max(0, writeRate),
+                wakeupsPerSec: wakeupsClamped,
+                energyImpact: energyImpact
             ))
         }
 

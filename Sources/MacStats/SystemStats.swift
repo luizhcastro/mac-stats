@@ -5,8 +5,9 @@ struct ProcessLeaders: Sendable {
     var memory: [ProcessMonitor.ProcStat]
     var disk: [ProcessMonitor.ProcStat]
     var network: [NetworkProcessMonitor.ProcStat]
+    var energy: [ProcessMonitor.ProcStat]
 
-    static let empty = ProcessLeaders(cpu: [], memory: [], disk: [], network: [])
+    static let empty = ProcessLeaders(cpu: [], memory: [], disk: [], network: [], energy: [])
 }
 
 struct SystemSnapshot: Sendable {
@@ -72,6 +73,16 @@ final class SystemStats: ObservableObject {
         }
     }
 
+    func setEnergyTrackingEnabled(_ enabled: Bool) {
+        Task { [weak self] in
+            guard let self else { return }
+            await sampler.setEnergyTrackingEnabled(enabled)
+            if enabled {
+                await refresh(forceDetailRefresh: true)
+            }
+        }
+    }
+
     private func refresh(forceDetailRefresh: Bool = false) async {
         snapshot = await sampler.sample(forceDetailRefresh: forceDetailRefresh)
     }
@@ -90,6 +101,7 @@ private actor StatsSampler {
     private let networkProcessMonitor = NetworkProcessMonitor()
     private var tickCount = 0
     private var detailSamplingEnabled = false
+    private var energyTrackingEnabled = false
     private static let cpuHistoryCapacity = 60
     private var cpuHistoryRing = [Double](repeating: 0, count: StatsSampler.cpuHistoryCapacity)
     private var cpuHistoryHead = 0
@@ -110,6 +122,11 @@ private actor StatsSampler {
         } else {
             networkProcessMonitor.stop()
         }
+    }
+
+    func setEnergyTrackingEnabled(_ enabled: Bool) {
+        energyTrackingEnabled = enabled
+        processMonitor.setEnergyTrackingEnabled(enabled)
     }
 
     func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {
@@ -133,7 +150,12 @@ private actor StatsSampler {
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
             let processes = processMonitor.sample()
             let netProcesses = networkProcessMonitor.sample()
-            lastProcessLeaders = buildProcessLeaders(from: processes, networkProcesses: netProcesses, limit: 8)
+            lastProcessLeaders = buildProcessLeaders(
+                from: processes,
+                networkProcesses: netProcesses,
+                limit: 8,
+                trackEnergy: energyTrackingEnabled
+            )
         }
 
         return SystemSnapshot(
@@ -169,21 +191,27 @@ private actor StatsSampler {
     private func buildProcessLeaders(
         from processes: [ProcessMonitor.ProcStat],
         networkProcesses: [NetworkProcessMonitor.ProcStat],
-        limit: Int
+        limit: Int,
+        trackEnergy: Bool
     ) -> ProcessLeaders {
         var cpu: [ProcessMonitor.ProcStat] = []
         var mem: [ProcessMonitor.ProcStat] = []
         var dsk: [ProcessMonitor.ProcStat] = []
         var net: [NetworkProcessMonitor.ProcStat] = []
+        var nrg: [ProcessMonitor.ProcStat] = []
         cpu.reserveCapacity(limit)
         mem.reserveCapacity(limit)
         dsk.reserveCapacity(limit)
         net.reserveCapacity(limit)
+        if trackEnergy { nrg.reserveCapacity(limit) }
         for p in processes {
             Self.topKInsert(into: &cpu, capacity: limit, value: p) { $0.cpuPercent > $1.cpuPercent }
             Self.topKInsert(into: &mem, capacity: limit, value: p) { $0.memoryBytes > $1.memoryBytes }
             Self.topKInsert(into: &dsk, capacity: limit, value: p) {
                 ($0.diskReadPerSec + $0.diskWritePerSec) > ($1.diskReadPerSec + $1.diskWritePerSec)
+            }
+            if trackEnergy {
+                Self.topKInsert(into: &nrg, capacity: limit, value: p) { $0.energyImpact > $1.energyImpact }
             }
         }
         for p in networkProcesses {
@@ -191,7 +219,7 @@ private actor StatsSampler {
                 ($0.bytesInPerSec + $0.bytesOutPerSec) > ($1.bytesInPerSec + $1.bytesOutPerSec)
             }
         }
-        return ProcessLeaders(cpu: cpu, memory: mem, disk: dsk, network: net)
+        return ProcessLeaders(cpu: cpu, memory: mem, disk: dsk, network: net, energy: nrg)
     }
 
     private static func topKInsert<T>(
