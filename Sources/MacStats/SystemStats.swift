@@ -4,8 +4,9 @@ struct ProcessLeaders: Sendable {
     var cpu: [ProcessMonitor.ProcStat]
     var memory: [ProcessMonitor.ProcStat]
     var disk: [ProcessMonitor.ProcStat]
+    var network: [NetworkProcessMonitor.ProcStat]
 
-    static let empty = ProcessLeaders(cpu: [], memory: [], disk: [])
+    static let empty = ProcessLeaders(cpu: [], memory: [], disk: [], network: [])
 }
 
 struct SystemSnapshot: Sendable {
@@ -86,9 +87,12 @@ private actor StatsSampler {
     private let batteryMonitor = BatteryMonitor()
     private let diskMonitor = DiskMonitor()
     private let processMonitor = ProcessMonitor()
+    private let networkProcessMonitor = NetworkProcessMonitor()
     private var tickCount = 0
     private var detailSamplingEnabled = false
-    private var cpuHistory = Array(repeating: 0.0, count: 60)
+    private static let cpuHistoryCapacity = 60
+    private var cpuHistoryRing = [Double](repeating: 0, count: StatsSampler.cpuHistoryCapacity)
+    private var cpuHistoryHead = 0
     private var lastBattery = BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false)
     private var lastBatterySampleTick: Int?
     private var lastProcessLeaders = ProcessLeaders.empty
@@ -113,8 +117,8 @@ private actor StatsSampler {
         )
 
         tickCount += 1
-        cpuHistory.removeFirst()
-        cpuHistory.append(cpu.usage)
+        cpuHistoryRing[cpuHistoryHead] = cpu.usage
+        cpuHistoryHead = (cpuHistoryHead + 1) % Self.cpuHistoryCapacity
 
         if detailSamplingEnabled && shouldRefreshBattery(force: forceDetailRefresh) {
             lastBattery = batteryMonitor.sample()
@@ -123,7 +127,8 @@ private actor StatsSampler {
 
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
             let processes = processMonitor.sample()
-            lastProcessLeaders = buildProcessLeaders(from: processes, limit: 8)
+            let netProcesses = networkProcessMonitor.sample()
+            lastProcessLeaders = buildProcessLeaders(from: processes, networkProcesses: netProcesses, limit: 8)
         }
 
         return SystemSnapshot(
@@ -132,9 +137,18 @@ private actor StatsSampler {
             network: network,
             battery: lastBattery,
             disk: disk,
-            cpuHistory: cpuHistory,
+            cpuHistory: linearizedCPUHistory(),
             processLeaders: lastProcessLeaders
         )
+    }
+
+    private func linearizedCPUHistory() -> [Double] {
+        let cap = Self.cpuHistoryCapacity
+        var out = [Double](repeating: 0, count: cap)
+        for i in 0..<cap {
+            out[i] = cpuHistoryRing[(cpuHistoryHead + i) % cap]
+        }
+        return out
     }
 
     private func shouldRefreshBattery(force: Bool) -> Bool {
@@ -147,13 +161,56 @@ private actor StatsSampler {
         force || tickCount % Self.processRefreshIntervalTicks == 0
     }
 
-    private func buildProcessLeaders(from processes: [ProcessMonitor.ProcStat], limit: Int) -> ProcessLeaders {
-        ProcessLeaders(
-            cpu: Array(processes.sorted { $0.cpuPercent > $1.cpuPercent }.prefix(limit)),
-            memory: Array(processes.sorted { $0.memoryBytes > $1.memoryBytes }.prefix(limit)),
-            disk: Array(processes.sorted {
+    private func buildProcessLeaders(
+        from processes: [ProcessMonitor.ProcStat],
+        networkProcesses: [NetworkProcessMonitor.ProcStat],
+        limit: Int
+    ) -> ProcessLeaders {
+        var cpu: [ProcessMonitor.ProcStat] = []
+        var mem: [ProcessMonitor.ProcStat] = []
+        var dsk: [ProcessMonitor.ProcStat] = []
+        var net: [NetworkProcessMonitor.ProcStat] = []
+        cpu.reserveCapacity(limit)
+        mem.reserveCapacity(limit)
+        dsk.reserveCapacity(limit)
+        net.reserveCapacity(limit)
+        for p in processes {
+            Self.topKInsert(into: &cpu, capacity: limit, value: p) { $0.cpuPercent > $1.cpuPercent }
+            Self.topKInsert(into: &mem, capacity: limit, value: p) { $0.memoryBytes > $1.memoryBytes }
+            Self.topKInsert(into: &dsk, capacity: limit, value: p) {
                 ($0.diskReadPerSec + $0.diskWritePerSec) > ($1.diskReadPerSec + $1.diskWritePerSec)
-            }.prefix(limit))
-        )
+            }
+        }
+        for p in networkProcesses {
+            Self.topKInsert(into: &net, capacity: limit, value: p) {
+                ($0.bytesInPerSec + $0.bytesOutPerSec) > ($1.bytesInPerSec + $1.bytesOutPerSec)
+            }
+        }
+        return ProcessLeaders(cpu: cpu, memory: mem, disk: dsk, network: net)
+    }
+
+    private static func topKInsert<T>(
+        into array: inout [T],
+        capacity: Int,
+        value: T,
+        isGreater: (T, T) -> Bool
+    ) {
+        if array.count < capacity {
+            array.append(value)
+            var i = array.count - 1
+            while i > 0 && isGreater(array[i], array[i - 1]) {
+                array.swapAt(i, i - 1)
+                i -= 1
+            }
+            return
+        }
+        let lastIdx = capacity - 1
+        if !isGreater(value, array[lastIdx]) { return }
+        array[lastIdx] = value
+        var i = lastIdx
+        while i > 0 && isGreater(array[i], array[i - 1]) {
+            array.swapAt(i, i - 1)
+            i -= 1
+        }
     }
 }

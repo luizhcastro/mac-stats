@@ -8,7 +8,14 @@ struct TopProcessesView: View {
         case cpu = "CPU"
         case memory = "RAM"
         case disk = "Disk"
+        case network = "Net"
         var id: String { rawValue }
+    }
+
+    private struct Row: Identifiable {
+        let id: String
+        let name: String
+        let value: String
     }
 
     var body: some View {
@@ -21,8 +28,8 @@ struct TopProcessesView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            ForEach(topN(8)) { proc in
-                row(name: proc.name, value: processValue(proc))
+            ForEach(rows(8)) { r in
+                row(name: r.name, value: r.value)
             }
         }
     }
@@ -41,22 +48,24 @@ struct TopProcessesView: View {
         .font(.caption)
     }
 
-    private func topN(_ n: Int) -> [ProcessMonitor.ProcStat] {
+    private func rows(_ n: Int) -> [Row] {
         switch tab {
         case .cpu:
-            return Array(stats.processLeaders.cpu.prefix(n))
+            return stats.processLeaders.cpu.prefix(n).map {
+                Row(id: "\($0.id)", name: $0.name, value: String(format: "%.2f%%", $0.cpuPercent))
+            }
         case .memory:
-            return Array(stats.processLeaders.memory.prefix(n))
+            return stats.processLeaders.memory.prefix(n).map {
+                Row(id: "\($0.id)", name: $0.name, value: Fmt.bytes($0.memoryBytes))
+            }
         case .disk:
-            return Array(stats.processLeaders.disk.prefix(n))
-        }
-    }
-
-    private func processValue(_ proc: ProcessMonitor.ProcStat) -> String {
-        switch tab {
-        case .cpu: return String(format: "%.2f%%", proc.cpuPercent)
-        case .memory: return Fmt.bytes(proc.memoryBytes)
-        case .disk: return Fmt.rate(proc.diskReadPerSec + proc.diskWritePerSec)
+            return stats.processLeaders.disk.prefix(n).map {
+                Row(id: "\($0.id)", name: $0.name, value: Fmt.rate($0.diskReadPerSec + $0.diskWritePerSec))
+            }
+        case .network:
+            return stats.processLeaders.network.prefix(n).map {
+                Row(id: "\($0.id)", name: $0.name, value: Fmt.rate($0.bytesInPerSec + $0.bytesOutPerSec))
+            }
         }
     }
 }

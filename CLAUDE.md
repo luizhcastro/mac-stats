@@ -13,7 +13,6 @@ Native macOS menu bar system monitor. Inspired by iStat Menus. Personal use, not
 
 - App Store distribution (no sandboxing, no notarization pipeline).
 - Cross-platform. macOS 13+ only (uses modern SwiftUI APIs + IOKit).
-- Network-per-process. Requires root/NEPacketTunnelProvider entitlement — deferred.
 - GPU/thermal deep metrics. SMC keys are private API — deferred until needed.
 
 ## Stack
@@ -54,6 +53,7 @@ Sources/MacStats/
 │   ├── DiskMonitor.swift      # IOKit IOBlockStorageDriver + cached volume stats
 │   ├── BatteryMonitor.swift   # IOPowerSources
 │   ├── ProcessMonitor.swift   # libproc: proc_listpids + PROC_PIDTASKALLINFO + rusage
+│   ├── NetworkProcessMonitor.swift # spawns `nettop` and parses per-process bytes_in/out
 │   └── SamplingMath.swift     # shared delta / rate helpers (handles counter rollover)
 └── Views/
     ├── SingleMetricLabel.swift   # one metric in the menu bar (icon above compact value)
@@ -110,6 +110,16 @@ Toggling `DisplayPreferences` while the popover is visible is buffered via `Menu
 Without this, the status item layout would shift during a popover session, causing focus loss and popover drift.
 
 ## Non-obvious technical decisions
+
+### Per-process network via `nettop`
+
+macOS does not expose per-process network counters through libproc. The two stable paths are NEPacketTunnelProvider (needs entitlements + root) and parsing `nettop` output. We use the latter.
+
+`NetworkProcessMonitor` spawns `/usr/bin/nettop -P -x -J bytes_in,bytes_out -L 1 -n` (single snapshot, CSV, no DNS). Output rows are `time,name.pid,bytes_in,bytes_out,`. Parse: split on `,`, then split the second field on its **last** `.` because process names can themselves contain dots (e.g. `2.1.126.84762`).
+
+Counters are cumulative bytes since process start, so we delta against the previous sample. Cache key is `pid` + name match — if the name changes between samples we treat it as a recycled PID and reset baseline (no spurious huge delta).
+
+Sampling only happens inside the detail tier (popover open) and only every `processRefreshIntervalTicks` ticks, same cadence as the libproc process iteration. `nettop` runs in ~10 ms on this machine.
 
 ### `proc_pid_rusage` pointer shape
 
