@@ -69,6 +69,8 @@ final class DiskMonitor {
         return (cachedCapacityBytes, cachedFreeBytes)
     }
 
+    private let statisticsKey = "Statistics" as CFString
+
     private func readIOStats() -> (UInt64, UInt64) {
         var iterator: io_iterator_t = 0
         let matching = IOServiceMatching("IOBlockStorageDriver")
@@ -85,10 +87,8 @@ final class DiskMonitor {
                 IOObjectRelease(service)
                 service = IOIteratorNext(iterator)
             }
-            var props: Unmanaged<CFMutableDictionary>?
-            guard IORegistryEntryCreateCFProperties(service, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
-                  let dict = props?.takeRetainedValue() as? [String: Any],
-                  let stats = dict["Statistics"] as? [String: Any] else { continue }
+            guard let prop = IORegistryEntryCreateCFProperty(service, statisticsKey, kCFAllocatorDefault, 0),
+                  let stats = prop.takeRetainedValue() as? [String: Any] else { continue }
             if let r = stats["Bytes (Read)"] as? UInt64 { totalRead &+= r }
             if let w = stats["Bytes (Write)"] as? UInt64 { totalWrite &+= w }
         }

@@ -1,11 +1,15 @@
 import Foundation
 
 enum Fmt {
-    static func bytes(_ value: UInt64) -> String {
+    nonisolated(unsafe) private static let byteFormatter: ByteCountFormatter = {
         let bcf = ByteCountFormatter()
         bcf.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
         bcf.countStyle = .memory
-        return bcf.string(fromByteCount: Int64(value))
+        return bcf
+    }()
+
+    static func bytes(_ value: UInt64) -> String {
+        byteFormatter.string(fromByteCount: Int64(value))
     }
 
     static func compactRate(_ bytesPerSec: Double) -> String {

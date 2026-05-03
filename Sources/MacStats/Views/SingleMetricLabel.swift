@@ -5,19 +5,9 @@ struct SingleMetricLabel: View {
     @ObservedObject var stats: SystemStats
     let metric: BarMetric
 
-    private static let valueFont = Font.system(size: 9, weight: .bold).monospacedDigit()
-    private static let iconFont = Font.system(size: 9, weight: .semibold)
-
     var body: some View {
-        VStack(spacing: 0) {
-            Image(systemName: metric.icon)
-                .font(Self.iconFont)
-            Text(text)
-                .font(Self.valueFont)
-                .lineLimit(1)
-                .frame(width: width, alignment: .center)
-        }
-        .fixedSize(horizontal: true, vertical: false)
+        SingleMetricLabelContent(text: text, icon: metric.icon, width: width)
+            .equatable()
     }
 
     private var text: String {
@@ -58,5 +48,26 @@ struct SingleMetricLabel: View {
         case .disk: return 28
         case .network: return 28
         }
+    }
+}
+
+private struct SingleMetricLabelContent: View, Equatable {
+    let text: String
+    let icon: String
+    let width: CGFloat
+
+    private static let valueFont = Font.system(size: 9, weight: .bold).monospacedDigit()
+    private static let iconFont = Font.system(size: 9, weight: .semibold)
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Image(systemName: icon)
+                .font(Self.iconFont)
+            Text(text)
+                .font(Self.valueFont)
+                .lineLimit(1)
+                .frame(width: width, alignment: .center)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 }

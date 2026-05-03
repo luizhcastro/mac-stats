@@ -17,6 +17,8 @@ final class ProcessMonitor {
         var cpuTimeNs: UInt64
         var diskRead: UInt64
         var diskWritten: UInt64
+        var tick: UInt64
+        var name: String
     }
 
     private struct ProcessIdentity: Hashable {
@@ -26,7 +28,9 @@ final class ProcessMonitor {
     }
 
     private var prior: [ProcessIdentity: Prior] = [:]
+    private var currentTick: UInt64 = 0
     private var lastSampleTime: Date?
+    private var staleScratch: [ProcessIdentity] = []
     private let coreCount = Double(max(1, Int(Foundation.ProcessInfo.processInfo.activeProcessorCount)))
     private let rusageBufferSize = max(MemoryLayout<rusage_info_v2>.size, 4096)
     private let rusageBuffer = UnsafeMutableRawPointer.allocate(
@@ -44,8 +48,8 @@ final class ProcessMonitor {
         let dt = lastSampleTime.map { now.timeIntervalSince($0) } ?? 1.0
         defer { lastSampleTime = now }
 
+        currentTick &+= 1
         var results: [ProcStat] = []
-        var nextPrior: [ProcessIdentity: Prior] = [:]
         results.reserveCapacity(pids.count)
 
         for pid in pids where pid > 0 {
@@ -69,18 +73,30 @@ final class ProcessMonitor {
             var cpuPct = 0.0
             var readRate = 0.0
             var writeRate = 0.0
-            if let p = prior[identity], dt > 0 {
-                if let deltaCpuNs = SamplingMath.delta(current: cpuTimeNs, previous: p.cpuTimeNs) {
-                    let deltaCpu = Double(deltaCpuNs) / 1_000_000_000.0
-                    cpuPct = (deltaCpu / dt) * 100 / coreCount
+            let cachedName: String?
+            if let p = prior[identity] {
+                cachedName = p.name
+                if dt > 0 {
+                    if let deltaCpuNs = SamplingMath.delta(current: cpuTimeNs, previous: p.cpuTimeNs) {
+                        let deltaCpu = Double(deltaCpuNs) / 1_000_000_000.0
+                        cpuPct = (deltaCpu / dt) * 100 / coreCount
+                    }
+                    readRate = SamplingMath.rate(current: diskRead, previous: p.diskRead, dt: dt)
+                    writeRate = SamplingMath.rate(current: diskWritten, previous: p.diskWritten, dt: dt)
                 }
-                readRate = SamplingMath.rate(current: diskRead, previous: p.diskRead, dt: dt)
-                writeRate = SamplingMath.rate(current: diskWritten, previous: p.diskWritten, dt: dt)
+            } else {
+                cachedName = nil
             }
 
-            nextPrior[identity] = Prior(cpuTimeNs: cpuTimeNs, diskRead: diskRead, diskWritten: diskWritten)
+            let name = cachedName ?? processName(pid: pid, info: info)
+            prior[identity] = Prior(
+                cpuTimeNs: cpuTimeNs,
+                diskRead: diskRead,
+                diskWritten: diskWritten,
+                tick: currentTick,
+                name: name
+            )
 
-            let name = processName(pid: pid, info: info)
             results.append(ProcStat(
                 id: pid,
                 name: name,
@@ -93,8 +109,18 @@ final class ProcessMonitor {
             ))
         }
 
-        prior = nextPrior
+        sweepStalePrior()
         return results
+    }
+
+    private func sweepStalePrior() {
+        staleScratch.removeAll(keepingCapacity: true)
+        for (k, v) in prior where v.tick != currentTick {
+            staleScratch.append(k)
+        }
+        for k in staleScratch {
+            prior.removeValue(forKey: k)
+        }
     }
 
     private func listPids() -> [Int32] {
@@ -109,7 +135,10 @@ final class ProcessMonitor {
         }
         guard n > 0 else { return [] }
         let actual = min(Int(n) / MemoryLayout<Int32>.size, capacity)
-        return Array(buf.prefix(actual))
+        if actual < capacity {
+            buf.removeLast(capacity - actual)
+        }
+        return buf
     }
 
     private func taskAllInfo(pid: Int32) -> proc_taskallinfo? {

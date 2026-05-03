@@ -105,6 +105,11 @@ private actor StatsSampler {
 
     func setDetailSamplingEnabled(_ enabled: Bool) {
         detailSamplingEnabled = enabled
+        if enabled {
+            networkProcessMonitor.start()
+        } else {
+            networkProcessMonitor.stop()
+        }
     }
 
     func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {

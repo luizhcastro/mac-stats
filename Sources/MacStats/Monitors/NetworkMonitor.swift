@@ -45,10 +45,10 @@ final class NetworkMonitor {
         var ptr: UnsafeMutablePointer<ifaddrs>? = first
         while let cur = ptr {
             defer { ptr = cur.pointee.ifa_next }
-            let name = String(cString: cur.pointee.ifa_name)
-            if name.hasPrefix("lo") { continue }
-            guard let data = cur.pointee.ifa_data else { continue }
             guard cur.pointee.ifa_addr?.pointee.sa_family == UInt8(AF_LINK) else { continue }
+            guard let data = cur.pointee.ifa_data else { continue }
+            let namePtr = cur.pointee.ifa_name!
+            if namePtr[0] == 0x6c /* 'l' */ && namePtr[1] == 0x6f /* 'o' */ { continue }
             let networkData = data.assumingMemoryBound(to: if_data.self).pointee
             totalIn &+= UInt64(networkData.ifi_ibytes)
             totalOut &+= UInt64(networkData.ifi_obytes)

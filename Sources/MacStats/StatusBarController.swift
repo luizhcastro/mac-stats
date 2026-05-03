@@ -21,9 +21,6 @@ final class StatusBarController {
         popover = NSPopover()
         popover.behavior = .transient
         popover.animates = false
-        popover.contentViewController = NSHostingController(
-            rootView: MenuBarContentView(stats: stats, prefs: prefs)
-        )
 
         buildAllStatusItems()
         applyVisibility()
@@ -99,6 +96,9 @@ final class StatusBarController {
     private func openPopover(anchoredTo button: NSStatusBarButton) {
         stats.setDetailSamplingEnabled(true)
         popover.delegate = popoverDelegate
+        popover.contentViewController = NSHostingController(
+            rootView: MenuBarContentView(stats: stats, prefs: prefs)
+        )
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.becomeKey()
         installOutsideClickMonitor()
@@ -129,6 +129,7 @@ final class StatusBarController {
         guard let self else { return }
         self.removeOutsideClickMonitor()
         self.stats.setDetailSamplingEnabled(false)
+        self.popover.contentViewController = nil
         if let pending = self.pendingSnapshot {
             self.pendingSnapshot = nil
             self.applySnapshot(pending)

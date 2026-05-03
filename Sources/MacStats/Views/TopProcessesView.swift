@@ -12,7 +12,7 @@ struct TopProcessesView: View {
         var id: String { rawValue }
     }
 
-    private struct Row: Identifiable {
+    struct Row: Identifiable, Equatable {
         let id: String
         let name: String
         let value: String
@@ -28,24 +28,9 @@ struct TopProcessesView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            ForEach(rows(8)) { r in
-                row(name: r.name, value: r.value)
-            }
+            RowsList(rows: rows(8))
+                .equatable()
         }
-    }
-
-    @ViewBuilder
-    private func row(name: String, value: String) -> some View {
-        HStack {
-            Text(name)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer()
-            Text(value)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-        }
-        .font(.caption)
     }
 
     private func rows(_ n: Int) -> [Row] {
@@ -66,6 +51,25 @@ struct TopProcessesView: View {
             return stats.processLeaders.network.prefix(n).map {
                 Row(id: "\($0.id)", name: $0.name, value: Fmt.rate($0.bytesInPerSec + $0.bytesOutPerSec))
             }
+        }
+    }
+}
+
+private struct RowsList: View, Equatable {
+    let rows: [TopProcessesView.Row]
+
+    var body: some View {
+        ForEach(rows) { r in
+            HStack {
+                Text(r.name)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+                Text(r.value)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
         }
     }
 }
