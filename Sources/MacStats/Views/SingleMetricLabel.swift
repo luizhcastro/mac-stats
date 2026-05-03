@@ -38,15 +38,17 @@ struct SingleMetricLabel: View {
             if mb < 10 { return String(format: "%.1fM", mb) }
             return String(format: "%dM", Int(mb.rounded()))
         }
-        return String(format: "%.1fG", bps / 1024 / 1024 / 1024)
+        let gb = bps / 1024 / 1024 / 1024
+        if gb < 10 { return String(format: "%.1fG", gb) }
+        return String(format: "%dG", Int(gb.rounded()))
     }
 
     private var width: CGFloat {
         switch metric {
-        case .cpu: return 26
-        case .ram: return 26
-        case .disk: return 28
-        case .network: return 28
+        case .cpu: return 30
+        case .ram: return 32
+        case .disk: return 36
+        case .network: return 36
         }
     }
 }
