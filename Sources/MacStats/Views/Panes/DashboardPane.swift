@@ -22,6 +22,9 @@ struct DashboardPane: View {
                     if stats.battery.hasBattery {
                         batteryCard
                     }
+                    if stats.temperature.hasReadings {
+                        temperatureCard
+                    }
                 }
             }
             .padding(24)
@@ -103,6 +106,26 @@ struct DashboardPane: View {
             }
             ProgressView(value: stats.battery.percent / 100.0)
                 .progressViewStyle(.linear)
+        }
+    }
+
+    private var temperatureCard: some View {
+        MetricCard(title: "Temperature", icon: "thermometer") {
+            HStack(alignment: .firstTextBaseline) {
+                Text(TemperaturePane.format(stats.temperature.cpuCelsius))
+                    .font(.system(size: 28, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(TemperaturePane.color(for: stats.temperature.cpuCelsius))
+                Spacer()
+                Text(stats.thermal.label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            AreaSpark(
+                values: stats.history.temperature,
+                max: ScaleHelper.niceMax(stats.history.temperature, minimum: 80),
+                color: .orange
+            )
         }
     }
 

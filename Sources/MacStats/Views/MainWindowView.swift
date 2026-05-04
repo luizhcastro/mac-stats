@@ -8,31 +8,34 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
     case disk
     case network
     case battery
+    case temperature
     case processes
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .dashboard: return "Overview"
-        case .cpu:       return "CPU"
-        case .memory:    return "Memory"
-        case .disk:      return "Disk"
-        case .network:   return "Network"
-        case .battery:   return "Battery"
-        case .processes: return "Processes"
+        case .dashboard:   return "Overview"
+        case .cpu:         return "CPU"
+        case .memory:      return "Memory"
+        case .disk:        return "Disk"
+        case .network:     return "Network"
+        case .battery:     return "Battery"
+        case .temperature: return "Temperature"
+        case .processes:   return "Processes"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .dashboard: return "square.grid.2x2"
-        case .cpu:       return "cpu"
-        case .memory:    return "memorychip"
-        case .disk:      return "internaldrive"
-        case .network:   return "network"
-        case .battery:   return "battery.100"
-        case .processes: return "list.bullet.rectangle"
+        case .dashboard:   return "square.grid.2x2"
+        case .cpu:         return "cpu"
+        case .memory:      return "memorychip"
+        case .disk:        return "internaldrive"
+        case .network:     return "network"
+        case .battery:     return "battery.100"
+        case .temperature: return "thermometer"
+        case .processes:   return "list.bullet.rectangle"
         }
     }
 }
@@ -54,6 +57,9 @@ struct MainWindowView: View {
                     sidebarRow(.network)
                     if stats.battery.hasBattery {
                         sidebarRow(.battery)
+                    }
+                    if stats.temperature.hasReadings {
+                        sidebarRow(.temperature)
                     }
                 }
                 Section("Activity") {
@@ -85,6 +91,7 @@ struct MainWindowView: View {
         case .disk:      DiskPane(stats: stats)
         case .network:   NetworkPane(stats: stats)
         case .battery:   BatteryPane(stats: stats)
+        case .temperature: TemperaturePane(stats: stats)
         case .processes: ProcessesPane(stats: stats)
         }
     }

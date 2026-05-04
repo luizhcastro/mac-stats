@@ -1,5 +1,29 @@
 import Foundation
 
+enum ThermalLevel: UInt8, Sendable {
+    case nominal, fair, serious, critical, unknown
+
+    var label: String {
+        switch self {
+        case .nominal: return "Nominal"
+        case .fair: return "Fair"
+        case .serious: return "Serious"
+        case .critical: return "Critical"
+        case .unknown: return "Unknown"
+        }
+    }
+
+    static func current() -> ThermalLevel {
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return .nominal
+        case .fair: return .fair
+        case .serious: return .serious
+        case .critical: return .critical
+        @unknown default: return .unknown
+        }
+    }
+}
+
 struct ProcessLeaders: Sendable {
     var cpu: [ProcessMonitor.ProcStat]
     var memory: [ProcessMonitor.ProcStat]
@@ -17,6 +41,7 @@ struct MetricHistory: Sendable {
     var networkOut: [Double]
     var diskRead: [Double]
     var diskWrite: [Double]
+    var temperature: [Double]
 
     static let empty = MetricHistory(
         cpu: Array(repeating: 0, count: 60),
@@ -24,7 +49,8 @@ struct MetricHistory: Sendable {
         networkIn: Array(repeating: 0, count: 60),
         networkOut: Array(repeating: 0, count: 60),
         diskRead: Array(repeating: 0, count: 60),
-        diskWrite: Array(repeating: 0, count: 60)
+        diskWrite: Array(repeating: 0, count: 60),
+        temperature: Array(repeating: 0, count: 60)
     )
 }
 
@@ -34,6 +60,8 @@ struct SystemSnapshot: Sendable {
     var network: NetworkMonitor.Sample
     var battery: BatteryMonitor.Sample
     var disk: DiskMonitor.Sample
+    var temperature: TemperatureMonitor.Sample
+    var thermal: ThermalLevel
     var history: MetricHistory
     var processLeaders: ProcessLeaders
     var allProcesses: [ProcessMonitor.ProcStat]
@@ -45,6 +73,8 @@ struct SystemSnapshot: Sendable {
         network: NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0),
         battery: BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false),
         disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0),
+        temperature: .empty,
+        thermal: .unknown,
         history: .empty,
         processLeaders: .empty,
         allProcesses: [],
@@ -67,6 +97,8 @@ final class SystemStats: ObservableObject {
     var network: NetworkMonitor.Sample { snapshot.network }
     var battery: BatteryMonitor.Sample { snapshot.battery }
     var disk: DiskMonitor.Sample { snapshot.disk }
+    var temperature: TemperatureMonitor.Sample { snapshot.temperature }
+    var thermal: ThermalLevel { snapshot.thermal }
     var history: MetricHistory { snapshot.history }
     var cpuHistory: [Double] { snapshot.history.cpu }
     var processLeaders: ProcessLeaders { snapshot.processLeaders }
@@ -162,6 +194,7 @@ final class SystemStats: ObservableObject {
 private actor StatsSampler {
     private static let processRefreshIntervalTicks = 2
     private static let batteryRefreshIntervalTicks = 30
+    private static let temperatureRefreshIntervalTicks = 5
     private static let historyCapacity = 60
 
     private let cpuMonitor = CPUMonitor()
@@ -171,6 +204,7 @@ private actor StatsSampler {
     private let diskMonitor = DiskMonitor()
     private let processMonitor = ProcessMonitor()
     private let networkProcessMonitor = NetworkProcessMonitor()
+    private let temperatureMonitor = TemperatureMonitor()
 
     private var tickCount = 0
     private var detailSamplingEnabled = false
@@ -184,10 +218,13 @@ private actor StatsSampler {
     private var netOutRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var diskReadRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var diskWriteRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var temperatureRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var ringHead = 0
 
     private var lastBattery = BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false)
     private var lastBatterySampleTick: Int?
+    private var lastTemperature = TemperatureMonitor.Sample.empty
+    private var lastTemperatureSampleTick: Int?
     private var lastProcessLeaders = ProcessLeaders.empty
     private var lastProcessList: [ProcessMonitor.ProcStat] = []
     private var processGeneration: UInt64 = 0
@@ -241,12 +278,23 @@ private actor StatsSampler {
         netOutRing[ringHead] = network.bytesOutPerSec
         diskReadRing[ringHead] = disk.readPerSec
         diskWriteRing[ringHead] = disk.writePerSec
+        let tempPoint = lastTemperature.cpuCelsius > 0
+            ? lastTemperature.cpuCelsius
+            : lastTemperature.maxCelsius
+        temperatureRing[ringHead] = max(tempPoint, 0)
         ringHead = (ringHead + 1) % Self.historyCapacity
 
         if detailSamplingEnabled && shouldRefreshBattery(force: forceDetailRefresh) {
             lastBattery = batteryMonitor.sample()
             lastBatterySampleTick = tickCount
         }
+
+        if detailSamplingEnabled && shouldRefreshTemperature(force: forceDetailRefresh) {
+            lastTemperature = temperatureMonitor.sample()
+            lastTemperatureSampleTick = tickCount
+        }
+
+        let thermal = ThermalLevel.current()
 
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
             var processes = processMonitor.sample()
@@ -273,7 +321,8 @@ private actor StatsSampler {
                 networkIn: linearized(netInRing),
                 networkOut: linearized(netOutRing),
                 diskRead: linearized(diskReadRing),
-                diskWrite: linearized(diskWriteRing)
+                diskWrite: linearized(diskWriteRing),
+                temperature: linearized(temperatureRing)
             )
             : .empty
 
@@ -283,6 +332,8 @@ private actor StatsSampler {
             network: network,
             battery: lastBattery,
             disk: disk,
+            temperature: lastTemperature,
+            thermal: thermal,
             history: history,
             processLeaders: lastProcessLeaders,
             allProcesses: lastProcessList,
@@ -303,6 +354,12 @@ private actor StatsSampler {
         if force { return true }
         guard let lastBatterySampleTick else { return true }
         return tickCount - lastBatterySampleTick >= Self.batteryRefreshIntervalTicks
+    }
+
+    private func shouldRefreshTemperature(force: Bool) -> Bool {
+        if force { return true }
+        guard let lastTemperatureSampleTick else { return true }
+        return tickCount - lastTemperatureSampleTick >= Self.temperatureRefreshIntervalTicks
     }
 
     private func shouldRefreshProcesses(force: Bool) -> Bool {

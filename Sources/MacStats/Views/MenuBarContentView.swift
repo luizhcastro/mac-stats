@@ -11,6 +11,10 @@ struct MenuBarContentView: View {
             header
             Divider()
             cpuSection
+            if stats.temperature.hasReadings {
+                Divider()
+                temperatureSection
+            }
             Divider()
             memorySection
             Divider()
@@ -81,6 +85,50 @@ struct MenuBarContentView: View {
             Sparkline(values: stats.cpuHistory, max: 100)
                 .frame(height: 28)
         }
+    }
+
+    private var temperatureSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label("Temperature", systemImage: "thermometer")
+                    .font(.headline)
+                Spacer()
+                Text(Self.tempText(stats.temperature.cpuCelsius, fallback: stats.temperature.maxCelsius))
+                    .monospacedDigit()
+            }
+            HStack(spacing: 10) {
+                if stats.temperature.cpuCelsius > 0 {
+                    Text("CPU \(Self.tempText(stats.temperature.cpuCelsius))")
+                }
+                if stats.temperature.gpuCelsius > 0 {
+                    Text("GPU \(Self.tempText(stats.temperature.gpuCelsius))")
+                }
+                if stats.temperature.maxCelsius > 0 {
+                    Text("Max \(Self.tempText(stats.temperature.maxCelsius))")
+                }
+                Spacer()
+                Text("· \(stats.thermal.label)")
+                    .foregroundStyle(thermalPressureColor)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var thermalPressureColor: Color {
+        switch stats.thermal {
+        case .nominal: return .green
+        case .fair: return .yellow
+        case .serious: return .orange
+        case .critical: return .red
+        case .unknown: return .secondary
+        }
+    }
+
+    private static func tempText(_ celsius: Double, fallback: Double = 0) -> String {
+        let v = celsius > 0 ? celsius : fallback
+        if v <= 0 { return "--°" }
+        return String(format: "%.0f°C", v)
     }
 
     private var memorySection: some View {

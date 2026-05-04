@@ -15,6 +15,12 @@ struct SingleMetricLabel: View {
         case .cpu:
             let v = Int(stats.cpu.usage.rounded())
             return String(format: "%d%%", min(max(v, 0), 100))
+        case .temperature:
+            let t = stats.temperature.cpuCelsius > 0
+                ? stats.temperature.cpuCelsius
+                : stats.temperature.maxCelsius
+            if t > 0 { return String(format: "%d°", Int(t.rounded())) }
+            return "--°"
         case .ram:
             let gb = Double(stats.memory.usedBytes) / 1_073_741_824.0
             if gb < 10 {
@@ -46,6 +52,7 @@ struct SingleMetricLabel: View {
     private var width: CGFloat {
         switch metric {
         case .cpu: return 30
+        case .temperature: return 26
         case .ram: return 32
         case .disk: return 36
         case .network: return 36

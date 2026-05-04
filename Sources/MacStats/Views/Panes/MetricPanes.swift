@@ -283,6 +283,85 @@ struct BatteryPane: View {
     }
 }
 
+struct TemperaturePane: View {
+    @ObservedObject var stats: SystemStats
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PaneHeader(title: "Temperature", subtitle: subtitle)
+                MetricCard(title: "CPU", icon: "cpu") {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(Self.format(stats.temperature.cpuCelsius))
+                            .font(.system(size: 36, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Self.color(for: stats.temperature.cpuCelsius))
+                        Spacer()
+                        Text("Pressure: \(stats.thermal.label)")
+                            .font(.caption)
+                            .foregroundStyle(thermalColor)
+                    }
+                    AreaSpark(
+                        values: stats.history.temperature,
+                        max: ScaleHelper.niceMax(stats.history.temperature, minimum: 80),
+                        color: .orange,
+                        height: 160
+                    )
+                }
+                HStack(spacing: 16) {
+                    MetricCard(title: "GPU", icon: "display") {
+                        Text(Self.format(stats.temperature.gpuCelsius))
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Self.color(for: stats.temperature.gpuCelsius))
+                    }
+                    MetricCard(title: "Hottest sensor", icon: "thermometer.high") {
+                        Text(Self.format(stats.temperature.maxCelsius))
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Self.color(for: stats.temperature.maxCelsius))
+                    }
+                    MetricCard(title: "Sensors", icon: "dot.radiowaves.left.and.right") {
+                        Text("\(stats.temperature.sensorCount)")
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .padding(24)
+        }
+    }
+
+    private var subtitle: String {
+        stats.temperature.hasReadings
+            ? "Live thermal sensors via IOHID"
+            : "No thermal sensors available"
+    }
+
+    private var thermalColor: Color {
+        switch stats.thermal {
+        case .nominal: return .green
+        case .fair: return .yellow
+        case .serious: return .orange
+        case .critical: return .red
+        case .unknown: return .secondary
+        }
+    }
+
+    static func format(_ celsius: Double) -> String {
+        if celsius <= 0 { return "--" }
+        return String(format: "%.0f°C", celsius)
+    }
+
+    static func color(for celsius: Double) -> Color {
+        if celsius <= 0 { return .secondary }
+        if celsius >= 90 { return .red }
+        if celsius >= 75 { return .orange }
+        if celsius >= 60 { return .yellow }
+        return .green
+    }
+}
+
 struct LeaderRow: Identifiable, Equatable {
     let id: String
     let pid: Int32

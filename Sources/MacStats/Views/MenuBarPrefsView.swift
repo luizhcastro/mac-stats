@@ -3,12 +3,18 @@ import SwiftUI
 struct MenuBarPrefsView: View {
     @ObservedObject var prefs: DisplayPreferences
 
+    private let columns: [GridItem] = [
+        GridItem(.flexible(), alignment: .leading),
+        GridItem(.flexible(), alignment: .leading),
+        GridItem(.flexible(), alignment: .leading)
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Show in menu bar")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
                 ForEach(BarMetric.allCases) { metric in
                     Toggle(isOn: Binding(
                         get: { prefs.isSelected(metric) },
@@ -16,11 +22,12 @@ struct MenuBarPrefsView: View {
                     )) {
                         Label(metric.label, systemImage: metric.icon)
                             .font(.caption)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     .toggleStyle(.checkbox)
                     .disabled(prefs.isSelected(metric) && prefs.selected.count == 1)
                 }
-                Spacer()
             }
         }
     }
