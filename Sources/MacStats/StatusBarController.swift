@@ -26,15 +26,21 @@ final class StatusBarController {
 
         buildAllStatusItems()
         applyVisibility()
+        syncTemperatureAlwaysOn(prefs.selected)
 
         prefs.$selected
             .dropFirst()
             .sink { [weak self] newValue in
                 DispatchQueue.main.async {
                     self?.handlePrefsChange(newValue)
+                    self?.syncTemperatureAlwaysOn(newValue)
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func syncTemperatureAlwaysOn(_ selected: [BarMetric]) {
+        stats.setTemperatureAlwaysOn(selected.contains(.temperature))
     }
 
     private func buildAllStatusItems() {

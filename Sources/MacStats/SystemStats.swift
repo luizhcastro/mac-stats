@@ -186,6 +186,12 @@ final class SystemStats: ObservableObject {
         }
     }
 
+    func setTemperatureAlwaysOn(_ enabled: Bool) {
+        Task { [sampler] in
+            await sampler.setTemperatureAlwaysOn(enabled)
+        }
+    }
+
     private func refresh(forceDetailRefresh: Bool = false) async {
         snapshot = await sampler.sample(forceDetailRefresh: forceDetailRefresh)
     }
@@ -211,6 +217,7 @@ private actor StatsSampler {
     private var energyTrackingEnabled = false
     private var fullProcessListEnabled = false
     private var networkProcessSamplingEnabled = false
+    private var temperatureAlwaysOn = false
 
     private var cpuRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var memRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
@@ -237,6 +244,10 @@ private actor StatsSampler {
 
     func setDetailSamplingEnabled(_ enabled: Bool) {
         detailSamplingEnabled = enabled
+    }
+
+    func setTemperatureAlwaysOn(_ enabled: Bool) {
+        temperatureAlwaysOn = enabled
     }
 
     func setNetworkProcessSamplingEnabled(_ enabled: Bool) {
@@ -289,7 +300,7 @@ private actor StatsSampler {
             lastBatterySampleTick = tickCount
         }
 
-        if detailSamplingEnabled && shouldRefreshTemperature(force: forceDetailRefresh) {
+        if (detailSamplingEnabled || temperatureAlwaysOn) && shouldRefreshTemperature(force: forceDetailRefresh) {
             lastTemperature = temperatureMonitor.sample()
             lastTemperatureSampleTick = tickCount
         }
