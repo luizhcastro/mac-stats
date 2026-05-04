@@ -13,6 +13,10 @@ final class ProcessMonitor {
         var diskWritePerSec: Double
         var wakeupsPerSec: Double
         var energyImpact: Double
+        var netInPerSec: Double = 0
+        var netOutPerSec: Double = 0
+
+        var pid: Int32 { id }
     }
 
     private struct Prior {
