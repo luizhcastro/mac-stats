@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        Self.killOrphanNettops()
         let stats = SystemStats()
         let prefs = DisplayPreferences()
         self.stats = stats
@@ -38,6 +39,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         windowController?.show()
         return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        Self.killOrphanNettops()
+    }
+
+    private static func killOrphanNettops() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        task.arguments = ["-f", "nettop -P -x -J bytes_in,bytes_out"]
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+        try? task.run()
+        task.waitUntilExit()
     }
 
     @objc func openMainWindow(_ sender: Any?) {
