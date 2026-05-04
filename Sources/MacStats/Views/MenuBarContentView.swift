@@ -4,6 +4,7 @@ import AppKit
 struct MenuBarContentView: View {
     @ObservedObject var stats: SystemStats
     @ObservedObject var prefs: DisplayPreferences
+    var openWindow: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,6 +52,13 @@ struct MenuBarContentView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Button {
+                openWindow()
+            } label: {
+                Image(systemName: "macwindow")
+            }
+            .buttonStyle(.borderless)
+            .help("Open main window")
         }
     }
 

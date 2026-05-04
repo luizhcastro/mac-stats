@@ -8,15 +8,17 @@ final class StatusBarController {
     private let stats: SystemStats
     private let prefs: DisplayPreferences
     private let snapshot: MenuBarSnapshot
+    private let openWindow: () -> Void
     private var statusItems: [BarMetric: NSStatusItem] = [:]
     private var cancellables: Set<AnyCancellable> = []
     private var pendingSnapshot: [BarMetric]?
     private var outsideClickMonitor: Any?
 
-    init(stats: SystemStats, prefs: DisplayPreferences) {
+    init(stats: SystemStats, prefs: DisplayPreferences, openWindow: @escaping () -> Void) {
         self.stats = stats
         self.prefs = prefs
         self.snapshot = MenuBarSnapshot(selected: prefs.selected)
+        self.openWindow = openWindow
 
         popover = NSPopover()
         popover.behavior = .transient
@@ -97,7 +99,10 @@ final class StatusBarController {
         stats.retainDetailSampling()
         popover.delegate = popoverDelegate
         popover.contentViewController = NSHostingController(
-            rootView: MenuBarContentView(stats: stats, prefs: prefs)
+            rootView: MenuBarContentView(stats: stats, prefs: prefs, openWindow: { [weak self] in
+                self?.closePopover()
+                self?.openWindow()
+            })
         )
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.becomeKey()
