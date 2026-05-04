@@ -13,6 +13,7 @@ struct ProcessesPane: View {
     @State private var selection: Int32?
     @State private var rows: [ProcessRow] = []
     @State private var totalCount: Int = 0
+    @State private var lastSeenGeneration: UInt64 = 0
 
     private static let rowHeight: CGFloat = 26
 
@@ -58,10 +59,13 @@ struct ProcessesPane: View {
         }
         .onAppear {
             stats.retainNetworkProcessSampling()
+            lastSeenGeneration = stats.snapshot.processGeneration
             rebuild()
         }
         .onDisappear { stats.releaseNetworkProcessSampling() }
         .onReceive(stats.$snapshot) { snap in
+            guard snap.processGeneration != lastSeenGeneration else { return }
+            lastSeenGeneration = snap.processGeneration
             rebuild(from: snap.allProcesses)
         }
         .onChange(of: query) { _ in rebuild() }
@@ -160,7 +164,7 @@ struct ProcessesPane: View {
         built.reserveCapacity(src.count)
         for p in src {
             if !q.isEmpty {
-                if !p.name.lowercased().contains(q) && !"\(p.id)".contains(q) {
+                if !p.nameLower.contains(q) && !"\(p.id)".contains(q) {
                     continue
                 }
             }

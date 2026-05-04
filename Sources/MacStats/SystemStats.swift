@@ -37,6 +37,7 @@ struct SystemSnapshot: Sendable {
     var history: MetricHistory
     var processLeaders: ProcessLeaders
     var allProcesses: [ProcessMonitor.ProcStat]
+    var processGeneration: UInt64
 
     static let empty = SystemSnapshot(
         cpu: CPUMonitor.Sample(usage: 0, user: 0, system: 0, idle: 0),
@@ -46,7 +47,8 @@ struct SystemSnapshot: Sendable {
         disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0),
         history: .empty,
         processLeaders: .empty,
-        allProcesses: []
+        allProcesses: [],
+        processGeneration: 0
     )
 }
 
@@ -188,6 +190,7 @@ private actor StatsSampler {
     private var lastBatterySampleTick: Int?
     private var lastProcessLeaders = ProcessLeaders.empty
     private var lastProcessList: [ProcessMonitor.ProcStat] = []
+    private var processGeneration: UInt64 = 0
 
     init() {
         _ = cpuMonitor.sample()
@@ -246,20 +249,33 @@ private actor StatsSampler {
         }
 
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
-            let processes = processMonitor.sample()
+            var processes = processMonitor.sample()
             let netProcesses = networkProcessSamplingEnabled
                 ? networkProcessMonitor.sample()
                 : []
+            if fullProcessListEnabled {
+                mergeNetworkRates(into: &processes, networkProcesses: netProcesses)
+                lastProcessList = processes
+            }
             lastProcessLeaders = buildProcessLeaders(
                 from: processes,
                 networkProcesses: netProcesses,
                 limit: 8,
                 trackEnergy: energyTrackingEnabled
             )
-            if fullProcessListEnabled {
-                lastProcessList = mergeNetworkRates(processes: processes, networkProcesses: netProcesses)
-            }
+            processGeneration &+= 1
         }
+
+        let history: MetricHistory = detailSamplingEnabled
+            ? MetricHistory(
+                cpu: linearized(cpuRing),
+                memoryPercent: linearized(memRing),
+                networkIn: linearized(netInRing),
+                networkOut: linearized(netOutRing),
+                diskRead: linearized(diskReadRing),
+                diskWrite: linearized(diskWriteRing)
+            )
+            : .empty
 
         return SystemSnapshot(
             cpu: cpu,
@@ -267,16 +283,10 @@ private actor StatsSampler {
             network: network,
             battery: lastBattery,
             disk: disk,
-            history: MetricHistory(
-                cpu: linearized(cpuRing),
-                memoryPercent: linearized(memRing),
-                networkIn: linearized(netInRing),
-                networkOut: linearized(netOutRing),
-                diskRead: linearized(diskReadRing),
-                diskWrite: linearized(diskWriteRing)
-            ),
+            history: history,
             processLeaders: lastProcessLeaders,
-            allProcesses: lastProcessList
+            allProcesses: lastProcessList,
+            processGeneration: processGeneration
         )
     }
 
@@ -300,21 +310,19 @@ private actor StatsSampler {
     }
 
     private func mergeNetworkRates(
-        processes: [ProcessMonitor.ProcStat],
+        into processes: inout [ProcessMonitor.ProcStat],
         networkProcesses: [NetworkProcessMonitor.ProcStat]
-    ) -> [ProcessMonitor.ProcStat] {
-        guard !networkProcesses.isEmpty else { return processes }
-        var byPid: [Int32: NetworkProcessMonitor.ProcStat] = [:]
+    ) {
+        guard !networkProcesses.isEmpty else { return }
+        var byPid: [Int32: (Double, Double)] = [:]
         byPid.reserveCapacity(networkProcesses.count)
-        for n in networkProcesses { byPid[n.id] = n }
-        var out = processes
-        for i in out.indices {
-            if let net = byPid[out[i].id] {
-                out[i].netInPerSec = net.bytesInPerSec
-                out[i].netOutPerSec = net.bytesOutPerSec
+        for n in networkProcesses { byPid[n.id] = (n.bytesInPerSec, n.bytesOutPerSec) }
+        for i in processes.indices {
+            if let net = byPid[processes[i].id] {
+                processes[i].netInPerSec = net.0
+                processes[i].netOutPerSec = net.1
             }
         }
-        return out
     }
 
     private func buildProcessLeaders(

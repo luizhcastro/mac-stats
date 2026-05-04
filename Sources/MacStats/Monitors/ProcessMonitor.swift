@@ -5,6 +5,7 @@ final class ProcessMonitor {
     struct ProcStat: Identifiable, Sendable {
         let id: Int32
         let name: String
+        let nameLower: String
         var cpuPercent: Double
         var memoryBytes: UInt64
         var diskBytesRead: UInt64
@@ -26,6 +27,7 @@ final class ProcessMonitor {
         var wakeups: UInt64
         var tick: UInt64
         var name: String
+        var nameLower: String
     }
 
     private static let idleWakeupEnergyCost = 0.39
@@ -40,6 +42,7 @@ final class ProcessMonitor {
     private var currentTick: UInt64 = 0
     private var lastSampleTime: Date?
     private var staleScratch: [ProcessIdentity] = []
+    private var pidBuf: [Int32] = []
     private var trackEnergy = false
     private let coreCount = Double(max(1, Int(Foundation.ProcessInfo.processInfo.activeProcessorCount)))
     private let rusageBufferSize = max(MemoryLayout<rusage_info_v2>.size, 4096)
@@ -57,16 +60,18 @@ final class ProcessMonitor {
     }
 
     func sample() -> [ProcStat] {
-        let pids = listPids()
+        let pidCount = listPidsInto(&pidBuf)
         let now = Date()
         let dt = lastSampleTime.map { now.timeIntervalSince($0) } ?? 1.0
         defer { lastSampleTime = now }
 
         currentTick &+= 1
         var results: [ProcStat] = []
-        results.reserveCapacity(pids.count)
+        results.reserveCapacity(pidCount)
 
-        for pid in pids where pid > 0 {
+        for idx in 0..<pidCount {
+            let pid = pidBuf[idx]
+            guard pid > 0 else { continue }
             guard let info = taskAllInfo(pid: pid) else { continue }
             let task = info.ptinfo
             let identity = ProcessIdentity(
@@ -92,9 +97,11 @@ final class ProcessMonitor {
             var readRate = 0.0
             var writeRate = 0.0
             var wakeupsRate = 0.0
-            let cachedName: String?
+            var cachedName: String?
+            var cachedNameLower: String?
             if let p = prior[identity] {
                 cachedName = p.name
+                cachedNameLower = p.nameLower
                 if dt > 0 {
                     if let deltaCpuNs = SamplingMath.delta(current: cpuTimeNs, previous: p.cpuTimeNs) {
                         let deltaCpu = Double(deltaCpuNs) / 1_000_000_000.0
@@ -106,18 +113,18 @@ final class ProcessMonitor {
                         wakeupsRate = SamplingMath.rate(current: wakeups, previous: p.wakeups, dt: dt)
                     }
                 }
-            } else {
-                cachedName = nil
             }
 
             let name = cachedName ?? processName(pid: pid, info: info)
+            let nameLower = cachedNameLower ?? name.lowercased()
             prior[identity] = Prior(
                 cpuTimeNs: cpuTimeNs,
                 diskRead: diskRead,
                 diskWritten: diskWritten,
                 wakeups: wakeups,
                 tick: currentTick,
-                name: name
+                name: name,
+                nameLower: nameLower
             )
 
             let cpuPctClamped = max(0, cpuPct)
@@ -127,6 +134,7 @@ final class ProcessMonitor {
             results.append(ProcStat(
                 id: pid,
                 name: name,
+                nameLower: nameLower,
                 cpuPercent: cpuPctClamped,
                 memoryBytes: rss,
                 diskBytesRead: diskRead,
@@ -152,22 +160,20 @@ final class ProcessMonitor {
         }
     }
 
-    private func listPids() -> [Int32] {
+    private func listPidsInto(_ buf: inout [Int32]) -> Int {
         let probe = proc_listpids(UInt32(PROC_ALL_PIDS), 0, nil, 0)
-        guard probe > 0 else { return [] }
+        guard probe > 0 else { return 0 }
         let slackBytes = Int32(1024 * MemoryLayout<Int32>.size)
         let bufBytes = probe + slackBytes
         let capacity = Int(bufBytes) / MemoryLayout<Int32>.size
-        var buf = [Int32](repeating: 0, count: capacity)
+        if buf.count < capacity {
+            buf = [Int32](repeating: 0, count: capacity)
+        }
         let n = buf.withUnsafeMutableBufferPointer { ptr -> Int32 in
             proc_listpids(UInt32(PROC_ALL_PIDS), 0, ptr.baseAddress, bufBytes)
         }
-        guard n > 0 else { return [] }
-        let actual = min(Int(n) / MemoryLayout<Int32>.size, capacity)
-        if actual < capacity {
-            buf.removeLast(capacity - actual)
-        }
-        return buf
+        guard n > 0 else { return 0 }
+        return min(Int(n) / MemoryLayout<Int32>.size, capacity)
     }
 
     private func taskAllInfo(pid: Int32) -> proc_taskallinfo? {
