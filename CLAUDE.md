@@ -13,7 +13,7 @@ Native macOS menu bar system monitor. Inspired by iStat Menus. Personal use, not
 
 - App Store distribution (no sandboxing, no notarization pipeline).
 - Cross-platform. macOS 13+ only (uses modern SwiftUI APIs + IOKit).
-- GPU/thermal deep metrics. SMC keys are private API — deferred until needed.
+- Fan RPM and SMC voltage/current sensors. Private SMC keys vary per chip — deferred until needed. (CPU/GPU/SOC temperatures *are* supported via IOHID; see below.)
 
 ## Stack
 
@@ -40,31 +40,40 @@ When iterating, kill before rebuild (`pkill -x MacStats`). If a change looks lik
 
 ```
 Sources/MacStats/
-├── MacStatsApp.swift          # @main, AppDelegate creates StatusBarController
-├── StatusBarController.swift  # owns N NSStatusItems (one per metric) + shared NSPopover
-├── SystemStats.swift          # @MainActor ObservableObject + actor StatsSampler
-├── DisplayPreferences.swift   # which metrics show in menu bar (UserDefaults-backed)
-├── MenuBarSnapshot.swift      # frozen copy of selected metrics for the status bar
-├── Formatters.swift           # byte/rate/percent formatting
-├── Monitors/                  # stateless-ish samplers, one per hardware domain
-│   ├── CPUMonitor.swift       # host_statistics HOST_CPU_LOAD_INFO
-│   ├── MemoryMonitor.swift    # host_statistics64 HOST_VM_INFO64
-│   ├── NetworkMonitor.swift   # getifaddrs + if_data
-│   ├── DiskMonitor.swift      # IOKit IOBlockStorageDriver + cached volume stats
-│   ├── BatteryMonitor.swift   # IOPowerSources
-│   ├── ProcessMonitor.swift   # libproc: proc_listpids + PROC_PIDTASKALLINFO + rusage
-│   ├── NetworkProcessMonitor.swift # spawns `nettop` and parses per-process bytes_in/out
-│   └── SamplingMath.swift     # shared delta / rate helpers (handles counter rollover)
+├── MacStatsApp.swift            # @main, AppDelegate; spawns StatusBarController + MainWindowController; pkill orphan nettops on launch/quit
+├── StatusBarController.swift    # owns N NSStatusItems (one per metric) + shared NSPopover; retains detail + nettop sampling while popover is shown
+├── MainWindowController.swift   # NSWindowController hosting MainWindowView (sidebar + detail panes)
+├── SystemStats.swift            # @MainActor ObservableObject + actor StatsSampler; refcounted detail/full-process/nettop tiers; ThermalLevel enum
+├── DisplayPreferences.swift     # BarMetric enum + which metrics show in menu bar (UserDefaults-backed)
+├── MenuBarSnapshot.swift        # frozen copy of selected metrics for the status bar
+├── Formatters.swift             # byte/rate/percent formatting
+├── ProcessKill.swift            # confirm-and-kill helper used by leader rows
+├── Monitors/                    # stateless-ish samplers, one per hardware domain
+│   ├── CPUMonitor.swift         # host_statistics HOST_CPU_LOAD_INFO
+│   ├── MemoryMonitor.swift      # host_statistics64 HOST_VM_INFO64
+│   ├── NetworkMonitor.swift     # getifaddrs + if_data
+│   ├── DiskMonitor.swift        # IOKit IOBlockStorageDriver + cached volume stats
+│   ├── BatteryMonitor.swift     # IOPowerSources
+│   ├── ProcessMonitor.swift     # libproc: proc_listpids + PROC_PIDTASKALLINFO + rusage
+│   ├── NetworkProcessMonitor.swift  # spawns `nettop` and parses per-process bytes_in/out
+│   ├── TemperatureMonitor.swift # private IOHIDEventSystemClient: CPU/GPU/SOC thermal sensors
+│   └── SamplingMath.swift       # shared delta / rate helpers (handles counter rollover)
 └── Views/
-    ├── SingleMetricLabel.swift   # one metric in the menu bar (icon above compact value)
-    ├── MenuBarContentView.swift  # dropdown / popover content (header + sections + prefs + quit)
-    ├── MenuBarPrefsView.swift    # checkboxes for which metrics show in bar
-    └── TopProcessesView.swift    # tabbed top processes (CPU/RAM/Disk)
+    ├── SingleMetricLabel.swift     # one metric in the menu bar (icon above compact value)
+    ├── MenuBarContentView.swift    # dropdown / popover content (header + sections + prefs + quit)
+    ├── MenuBarPrefsView.swift      # 3-col grid of checkboxes for which metrics show in bar
+    ├── TopProcessesView.swift      # tabbed top processes (CPU/RAM/Disk/Network/Energy)
+    ├── MainWindowView.swift        # sidebar nav (Overview / Hardware / Activity)
+    ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, AreaSpark, DualAreaSpark, ScaleHelper
+    └── Panes/
+        ├── DashboardPane.swift     # at-a-glance card grid (cpu, mem, network, disk, battery, temperature)
+        ├── MetricPanes.swift       # CPU / Memory / Disk / Network / Battery / Temperature panes + LeaderList
+        └── ProcessesPane.swift     # full filterable / sortable process table
 
 Resources/
-└── AppIcon.icns               # built via iconutil from design_handoff_macstats_logo/
+└── AppIcon.icns                # built via iconutil from design_handoff_macstats_logo/
 
-design_handoff_macstats_logo/  # canonical icon source (SVG + sized PNGs + README)
+design_handoff_macstats_logo/   # canonical icon source (SVG + sized PNGs + README)
 ```
 
 ### Data flow
@@ -74,30 +83,37 @@ design_handoff_macstats_logo/  # canonical icon source (SVG + sized PNGs + READM
 3. Per-field accessors (`stats.cpu`, `stats.memory`, `stats.disk`, `stats.processLeaders`, …) are thin computed vars that read `snapshot`. Existing view code keeps working unchanged.
 4. Counters that can wrap (CPU ticks, network / disk bytes, per-process rusage) all go through `SamplingMath.delta` / `SamplingMath.rate`, which guards `current >= previous` before subtracting.
 
-### Detail sampling (popover-driven)
+### Detail sampling (refcount-gated)
 
 Sampling is split into two tiers to keep idle cost low:
 
-- **Always-on, cheap**: CPU, memory, network, disk I/O rate. Every tick.
-- **Detail-only, expensive**: battery (IOKit power source query), full process list (iterating every PID + `proc_pidinfo` + rusage) and volume capacity (`URL.resourceValues` for `volumeAvailableCapacityForImportantUsage`, which triggers a cache-delete XPC roundtrip).
+- **Always-on, cheap**: CPU, memory, network, disk I/O rate, thermal pressure (`ProcessInfo.thermalState`). Every tick.
+- **Detail-only, expensive**: battery (IOKit power source query), full process list (iterating every PID + `proc_pidinfo` + rusage), volume capacity (`URL.resourceValues` for `volumeAvailableCapacityForImportantUsage`, which triggers a cache-delete XPC roundtrip), and temperature (IOHID event copy across all sensors).
 
-`SystemStats.setDetailSamplingEnabled(_:)` toggles the second tier. `StatusBarController` calls it with `true` on `openPopover` and `false` on `popoverDidClose`. While the dropdown is closed, the app does not hit IOKit for battery, does not iterate PIDs, and does not probe volume capacity.
+`SystemStats` exposes three independent **refcount** APIs instead of plain on/off setters:
+
+- `retainDetailSampling()` / `releaseDetailSampling()` — toggles the detail tier.
+- `retainFullProcessListEnabled()` / `releaseFullProcessListEnabled()` — populates `snapshot.allProcesses` (consumed only by the full process table). Detail tier already populates `processLeaders`.
+- `retainNetworkProcessSampling()` / `releaseNetworkProcessSampling()` — starts/stops the long-running `nettop` child.
+
+Each consumer (popover, NetworkPane, ProcessesPane) calls retain on appear / open and release on disappear / close. The first retain transitions the tier on; the last release transitions it off. This means the popover can stay closed while the main window keeps a network/process view alive — and conversely, opening the popover doesn't double-spawn nettop.
 
 Additional cadences inside the detail tier:
 
 - Battery: every 30 ticks (~30 s) — a `lastBatterySampleTick` counter spaces it out.
 - Processes: every 2 ticks when detail sampling is on.
 - Volume stats: cached for 30 s; stale entries refresh on the next detail tick.
+- Temperature: every 5 ticks (~5 s) — `lastTemperatureSampleTick`. CPU temp is pushed into a 60-sample ring every tick (repeats last sample) so the sparkline is smooth. Sampling is also kept alive outside the detail tier when the user has the temperature metric selected in the menu bar (`StatusBarController` calls `setTemperatureAlwaysOn(true)` on prefs change), so a visible status item stays current even with the popover and main window closed.
 
-When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(forceDetailRefresh: true)` so the dropdown shows fresh numbers immediately instead of waiting up to 30 s for the next battery or volume-stats refresh.
+When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(forceDetailRefresh: true)` so the dropdown shows fresh numbers immediately instead of waiting up to 30 s for the next battery / temperature / volume-stats refresh.
 
 ### Menu bar rendering
 
-- **One `NSStatusItem` per metric** (CPU, RAM, Disk). Not a single item with a multi-slot label. This lets macOS hide items individually under width pressure instead of collapsing the whole group at once. Each item owns an `NSHostingView<SingleMetricLabel>`.
-- All three items are **created once at launch** and toggled via `item.isVisible` when the user checks/unchecks a metric. Recreating items on every toggle turned out to be flaky (items occasionally failed to reappear).
+- **One `NSStatusItem` per metric** (CPU, Temperature, RAM, Disk, Network — five total `BarMetric` cases). Not a single item with a multi-slot label. This lets macOS hide items individually under width pressure instead of collapsing the whole group at once. Each item owns an `NSHostingView<SingleMetricLabel>`.
+- All items are **created once at launch** and toggled via `item.isVisible` when the user checks/unchecks a metric. Recreating items on every toggle turned out to be flaky (items occasionally failed to reappear).
 - Items share **one `NSPopover`** (`behavior = .transient`, no animation). Clicking any item's button opens the popover anchored to that button.
 - Popover closes on outside click via a **global `NSEvent.addGlobalMonitorForEvents`** monitor for `leftMouseDown`/`rightMouseDown`. `.transient` alone is unreliable, especially when items get hidden.
-- Menu bar label uses `Font.system(size: 9, weight: .bold).monospacedDigit()` with compact suffixes (`99%`, `9.9G`, `1.2M`) and fixed-width frames per metric.
+- Menu bar label uses `Font.system(size: 9, weight: .bold).monospacedDigit()` with compact suffixes (`99%`, `9.9G`, `1.2M`, `65°`) and fixed-width frames per metric.
 
 ### Freezing the menu bar while the popover is open
 
@@ -119,7 +135,30 @@ macOS does not expose per-process network counters through libproc. The two stab
 
 Critical: nettop **block-buffers stdout when its output is not a TTY**. Spawning it with a regular `Pipe()` produces zero output until the buffer fills (which can take minutes), so the network tab appears empty. Allocate a PTY via `openpty()` and pass the slave fd as the process's `standardOutput` (and `standardInput`). Read from the master `FileHandle` via `readabilityHandler`. The line discipline forces line-buffered flushes. Side effect: lines are terminated with `\r\n` instead of `\n` — the trailing `\r` lands after the 4th comma so the field parsers are unaffected, and the header marker `"time,"` still matches at position 0.
 
-Counters are cumulative bytes since process start, so we delta against the previous sample. Cache key is `pid` + name match — if the name changes between samples we treat it as a recycled PID and reset baseline (no spurious huge delta). The streaming process is started in `setDetailSamplingEnabled(true)` and terminated on `setDetailSamplingEnabled(false)`, so it only runs while the popover is open.
+Counters are cumulative bytes since process start, so we delta against the previous sample. Cache key is `pid` + name match — if the name changes between samples we treat it as a recycled PID and reset baseline (no spurious huge delta).
+
+Lifecycle is **refcount-gated** via `retainNetworkProcessSampling()` / `releaseNetworkProcessSampling()`, called from `StatusBarController.openPopover` (popover anchor), `NetworkPane.onAppear`, and `ProcessesPane.onAppear`. The streaming nettop process only runs while at least one consumer is active.
+
+`stop()` kills nettop in three layers:
+1. `readabilityHandler = nil` + `masterHandle.closeFile()` — next nettop write hits SIGPIPE.
+2. `process.terminate()` — SIGTERM immediately.
+3. `kill(pid, SIGKILL)` after a 0.5 s grace if the process is still alive.
+
+Typical shutdown takes ~10–50 ms (SIGTERM resolves it); hard cap is 500 ms.
+
+`AppDelegate.killOrphanNettops()` runs on both `applicationDidFinishLaunching` and `applicationWillTerminate` — it `pkill -f`s any leftover nettop processes matching our exact arguments, covering the rare case where MacStats was killed with SIGKILL and couldn't run its own teardown.
+
+### Temperature via private IOHID
+
+CPU/GPU/SOC temperatures are read via the private `IOHIDEventSystemClient` API. Public alternatives don't exist on Apple Silicon: SMC keys are largely deprecated, and `ProcessInfo.thermalState` only exposes a coarse pressure level (nominal/fair/serious/critical), not absolute Celsius readings.
+
+`TemperatureMonitor` declares the symbols via `@_silgen_name` (no public header), creates a single `IOHIDEventSystemClient` at init, sets a matching dictionary for `PrimaryUsagePage = 0xff00 / PrimaryUsage = 0x0005` (Apple vendor temperature sensors), and copies the matching services array once. Each service is classified once at init by name substring (e.g. `pACC`, `eACC`, `PMP`, `SOC` → CPU; `GPU` → GPU). The classification is stored as an aligned `[Category]` array, so the per-tick path is a tight `for i in 0..<services.count` loop with O(1) lookups and no Swift heap allocations beyond the (immediately released) per-event CFType.
+
+The sample produces aggregate `cpuCelsius`, `gpuCelsius`, `maxCelsius`, `sensorCount` — not a per-sensor list, so views never trigger array allocation per refresh.
+
+Thermal pressure (`ProcessInfo.processInfo.thermalState`) is read every tick — it's a free property read and lives outside the detail tier. The dropdown / dashboard / temperature pane all show the pressure label colored by severity.
+
+On Intel Macs (or any system without IOHID temperature services), `services.isEmpty` is true and `Sample.hasReadings` is false; the menu bar item, dropdown section, sidebar entry, and dashboard card all hide themselves.
 
 ### `proc_pid_rusage` pointer shape
 
