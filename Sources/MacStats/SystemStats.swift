@@ -10,14 +10,33 @@ struct ProcessLeaders: Sendable {
     static let empty = ProcessLeaders(cpu: [], memory: [], disk: [], network: [], energy: [])
 }
 
+struct MetricHistory: Sendable {
+    var cpu: [Double]
+    var memoryPercent: [Double]
+    var networkIn: [Double]
+    var networkOut: [Double]
+    var diskRead: [Double]
+    var diskWrite: [Double]
+
+    static let empty = MetricHistory(
+        cpu: Array(repeating: 0, count: 60),
+        memoryPercent: Array(repeating: 0, count: 60),
+        networkIn: Array(repeating: 0, count: 60),
+        networkOut: Array(repeating: 0, count: 60),
+        diskRead: Array(repeating: 0, count: 60),
+        diskWrite: Array(repeating: 0, count: 60)
+    )
+}
+
 struct SystemSnapshot: Sendable {
     var cpu: CPUMonitor.Sample
     var memory: MemoryMonitor.Sample
     var network: NetworkMonitor.Sample
     var battery: BatteryMonitor.Sample
     var disk: DiskMonitor.Sample
-    var cpuHistory: [Double]
+    var history: MetricHistory
     var processLeaders: ProcessLeaders
+    var allProcesses: [ProcessMonitor.ProcStat]
 
     static let empty = SystemSnapshot(
         cpu: CPUMonitor.Sample(usage: 0, user: 0, system: 0, idle: 0),
@@ -25,8 +44,9 @@ struct SystemSnapshot: Sendable {
         network: NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0),
         battery: BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false),
         disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0),
-        cpuHistory: Array(repeating: 0, count: 60),
-        processLeaders: .empty
+        history: .empty,
+        processLeaders: .empty,
+        allProcesses: []
     )
 }
 
@@ -36,14 +56,18 @@ final class SystemStats: ObservableObject {
 
     private let sampler = StatsSampler()
     private var samplingTask: Task<Void, Never>?
+    private var detailRetainCount = 0
+    private var fullProcessListRetainCount = 0
 
     var cpu: CPUMonitor.Sample { snapshot.cpu }
     var memory: MemoryMonitor.Sample { snapshot.memory }
     var network: NetworkMonitor.Sample { snapshot.network }
     var battery: BatteryMonitor.Sample { snapshot.battery }
     var disk: DiskMonitor.Sample { snapshot.disk }
-    var cpuHistory: [Double] { snapshot.cpuHistory }
+    var history: MetricHistory { snapshot.history }
+    var cpuHistory: [Double] { snapshot.history.cpu }
     var processLeaders: ProcessLeaders { snapshot.processLeaders }
+    var allProcesses: [ProcessMonitor.ProcStat] { snapshot.allProcesses }
 
     init() {
         samplingTask = Task { [weak self] in
@@ -58,18 +82,43 @@ final class SystemStats: ObservableObject {
 
     deinit { samplingTask?.cancel() }
 
-    func setDetailSamplingEnabled(_ enabled: Bool) {
-        if enabled {
+    func retainDetailSampling() {
+        detailRetainCount += 1
+        if detailRetainCount == 1 {
             Task { [weak self] in
                 guard let self else { return }
                 await sampler.setDetailSamplingEnabled(true)
                 await refresh(forceDetailRefresh: true)
             }
-            return
         }
+    }
 
-        Task { [sampler] in
-            await sampler.setDetailSamplingEnabled(false)
+    func releaseDetailSampling() {
+        guard detailRetainCount > 0 else { return }
+        detailRetainCount -= 1
+        if detailRetainCount == 0 {
+            Task { [sampler] in
+                await sampler.setDetailSamplingEnabled(false)
+            }
+        }
+    }
+
+    func retainFullProcessList() {
+        fullProcessListRetainCount += 1
+        if fullProcessListRetainCount == 1 {
+            Task { [sampler] in
+                await sampler.setFullProcessListEnabled(true)
+            }
+        }
+    }
+
+    func releaseFullProcessList() {
+        guard fullProcessListRetainCount > 0 else { return }
+        fullProcessListRetainCount -= 1
+        if fullProcessListRetainCount == 0 {
+            Task { [sampler] in
+                await sampler.setFullProcessListEnabled(false)
+            }
         }
     }
 
@@ -91,6 +140,7 @@ final class SystemStats: ObservableObject {
 private actor StatsSampler {
     private static let processRefreshIntervalTicks = 2
     private static let batteryRefreshIntervalTicks = 30
+    private static let historyCapacity = 60
 
     private let cpuMonitor = CPUMonitor()
     private let memoryMonitor = MemoryMonitor()
@@ -99,15 +149,24 @@ private actor StatsSampler {
     private let diskMonitor = DiskMonitor()
     private let processMonitor = ProcessMonitor()
     private let networkProcessMonitor = NetworkProcessMonitor()
+
     private var tickCount = 0
     private var detailSamplingEnabled = false
     private var energyTrackingEnabled = false
-    private static let cpuHistoryCapacity = 60
-    private var cpuHistoryRing = [Double](repeating: 0, count: StatsSampler.cpuHistoryCapacity)
-    private var cpuHistoryHead = 0
+    private var fullProcessListEnabled = false
+
+    private var cpuRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var memRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var netInRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var netOutRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var diskReadRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var diskWriteRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var ringHead = 0
+
     private var lastBattery = BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false)
     private var lastBatterySampleTick: Int?
     private var lastProcessLeaders = ProcessLeaders.empty
+    private var lastProcessList: [ProcessMonitor.ProcStat] = []
 
     init() {
         _ = cpuMonitor.sample()
@@ -129,6 +188,13 @@ private actor StatsSampler {
         processMonitor.setEnergyTrackingEnabled(enabled)
     }
 
+    func setFullProcessListEnabled(_ enabled: Bool) {
+        fullProcessListEnabled = enabled
+        if !enabled {
+            lastProcessList = []
+        }
+    }
+
     func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {
         let cpu = cpuMonitor.sample()
         let memory = memoryMonitor.sample()
@@ -139,8 +205,14 @@ private actor StatsSampler {
         )
 
         tickCount += 1
-        cpuHistoryRing[cpuHistoryHead] = cpu.usage
-        cpuHistoryHead = (cpuHistoryHead + 1) % Self.cpuHistoryCapacity
+        cpuRing[ringHead] = cpu.usage
+        let memTotal = max(memory.totalBytes, 1)
+        memRing[ringHead] = Double(memory.usedBytes) / Double(memTotal) * 100.0
+        netInRing[ringHead] = network.bytesInPerSec
+        netOutRing[ringHead] = network.bytesOutPerSec
+        diskReadRing[ringHead] = disk.readPerSec
+        diskWriteRing[ringHead] = disk.writePerSec
+        ringHead = (ringHead + 1) % Self.historyCapacity
 
         if detailSamplingEnabled && shouldRefreshBattery(force: forceDetailRefresh) {
             lastBattery = batteryMonitor.sample()
@@ -156,6 +228,9 @@ private actor StatsSampler {
                 limit: 8,
                 trackEnergy: energyTrackingEnabled
             )
+            if fullProcessListEnabled {
+                lastProcessList = mergeNetworkRates(processes: processes, networkProcesses: netProcesses)
+            }
         }
 
         return SystemSnapshot(
@@ -164,16 +239,24 @@ private actor StatsSampler {
             network: network,
             battery: lastBattery,
             disk: disk,
-            cpuHistory: linearizedCPUHistory(),
-            processLeaders: lastProcessLeaders
+            history: MetricHistory(
+                cpu: linearized(cpuRing),
+                memoryPercent: linearized(memRing),
+                networkIn: linearized(netInRing),
+                networkOut: linearized(netOutRing),
+                diskRead: linearized(diskReadRing),
+                diskWrite: linearized(diskWriteRing)
+            ),
+            processLeaders: lastProcessLeaders,
+            allProcesses: lastProcessList
         )
     }
 
-    private func linearizedCPUHistory() -> [Double] {
-        let cap = Self.cpuHistoryCapacity
+    private func linearized(_ ring: [Double]) -> [Double] {
+        let cap = Self.historyCapacity
         var out = [Double](repeating: 0, count: cap)
         for i in 0..<cap {
-            out[i] = cpuHistoryRing[(cpuHistoryHead + i) % cap]
+            out[i] = ring[(ringHead + i) % cap]
         }
         return out
     }
@@ -186,6 +269,24 @@ private actor StatsSampler {
 
     private func shouldRefreshProcesses(force: Bool) -> Bool {
         force || tickCount % Self.processRefreshIntervalTicks == 0
+    }
+
+    private func mergeNetworkRates(
+        processes: [ProcessMonitor.ProcStat],
+        networkProcesses: [NetworkProcessMonitor.ProcStat]
+    ) -> [ProcessMonitor.ProcStat] {
+        guard !networkProcesses.isEmpty else { return processes }
+        var byPid: [Int32: NetworkProcessMonitor.ProcStat] = [:]
+        byPid.reserveCapacity(networkProcesses.count)
+        for n in networkProcesses { byPid[n.id] = n }
+        var out = processes
+        for i in out.indices {
+            if let net = byPid[out[i].id] {
+                out[i].netInPerSec = net.bytesInPerSec
+                out[i].netOutPerSec = net.bytesOutPerSec
+            }
+        }
+        return out
     }
 
     private func buildProcessLeaders(
