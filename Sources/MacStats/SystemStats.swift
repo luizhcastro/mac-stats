@@ -58,6 +58,7 @@ final class SystemStats: ObservableObject {
     private var samplingTask: Task<Void, Never>?
     private var detailRetainCount = 0
     private var fullProcessListRetainCount = 0
+    private var networkProcessRetainCount = 0
 
     var cpu: CPUMonitor.Sample { snapshot.cpu }
     var memory: MemoryMonitor.Sample { snapshot.memory }
@@ -122,6 +123,25 @@ final class SystemStats: ObservableObject {
         }
     }
 
+    func retainNetworkProcessSampling() {
+        networkProcessRetainCount += 1
+        if networkProcessRetainCount == 1 {
+            Task { [sampler] in
+                await sampler.setNetworkProcessSamplingEnabled(true)
+            }
+        }
+    }
+
+    func releaseNetworkProcessSampling() {
+        guard networkProcessRetainCount > 0 else { return }
+        networkProcessRetainCount -= 1
+        if networkProcessRetainCount == 0 {
+            Task { [sampler] in
+                await sampler.setNetworkProcessSamplingEnabled(false)
+            }
+        }
+    }
+
     func setEnergyTrackingEnabled(_ enabled: Bool) {
         Task { [weak self] in
             guard let self else { return }
@@ -154,6 +174,7 @@ private actor StatsSampler {
     private var detailSamplingEnabled = false
     private var energyTrackingEnabled = false
     private var fullProcessListEnabled = false
+    private var networkProcessSamplingEnabled = false
 
     private var cpuRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var memRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
@@ -176,6 +197,11 @@ private actor StatsSampler {
 
     func setDetailSamplingEnabled(_ enabled: Bool) {
         detailSamplingEnabled = enabled
+    }
+
+    func setNetworkProcessSamplingEnabled(_ enabled: Bool) {
+        guard networkProcessSamplingEnabled != enabled else { return }
+        networkProcessSamplingEnabled = enabled
         if enabled {
             networkProcessMonitor.start()
         } else {
@@ -221,7 +247,9 @@ private actor StatsSampler {
 
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
             let processes = processMonitor.sample()
-            let netProcesses = networkProcessMonitor.sample()
+            let netProcesses = networkProcessSamplingEnabled
+                ? networkProcessMonitor.sample()
+                : []
             lastProcessLeaders = buildProcessLeaders(
                 from: processes,
                 networkProcesses: netProcesses,

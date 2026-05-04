@@ -97,6 +97,7 @@ final class StatusBarController {
 
     private func openPopover(anchoredTo button: NSStatusBarButton) {
         stats.retainDetailSampling()
+        stats.retainNetworkProcessSampling()
         popover.delegate = popoverDelegate
         popover.contentViewController = NSHostingController(
             rootView: MenuBarContentView(stats: stats, prefs: prefs, openWindow: { [weak self] in
@@ -134,6 +135,7 @@ final class StatusBarController {
         guard let self else { return }
         self.removeOutsideClickMonitor()
         self.stats.releaseDetailSampling()
+        self.stats.releaseNetworkProcessSampling()
         self.popover.contentViewController = nil
         if let pending = self.pendingSnapshot {
             self.pendingSnapshot = nil

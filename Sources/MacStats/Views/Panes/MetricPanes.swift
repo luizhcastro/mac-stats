@@ -239,6 +239,8 @@ struct NetworkPane: View {
             }
             .padding(24)
         }
+        .onAppear { stats.retainNetworkProcessSampling() }
+        .onDisappear { stats.releaseNetworkProcessSampling() }
     }
 }
 

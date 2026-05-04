@@ -56,7 +56,11 @@ struct ProcessesPane: View {
                 }
             }
         }
-        .onAppear { rebuild() }
+        .onAppear {
+            stats.retainNetworkProcessSampling()
+            rebuild()
+        }
+        .onDisappear { stats.releaseNetworkProcessSampling() }
         .onReceive(stats.$snapshot) { snap in
             rebuild(from: snap.allProcesses)
         }

@@ -22,8 +22,8 @@ final class NetworkProcessMonitor: @unchecked Sendable {
     }
 
     private static let topK = 8
-    private static let snapshotIntervalSeconds: Double = 2
-    private static let invSnapshotInterval: Double = 1.0 / 2.0
+    private static let snapshotIntervalSeconds: Double = 3
+    private static let invSnapshotInterval: Double = 1.0 / 3.0
     private static let bufferCompactThreshold = 4096
 
     private let lock = NSLock()
@@ -61,7 +61,7 @@ final class NetworkProcessMonitor: @unchecked Sendable {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        process.arguments = ["-P", "-x", "-J", "bytes_in,bytes_out", "-s", "2", "-n", "-L", "0"]
+        process.arguments = ["-P", "-x", "-J", "bytes_in,bytes_out", "-s", "3", "-n", "-L", "0"]
         process.standardInput = slaveFH
         process.standardOutput = slaveFH
         process.standardError = FileHandle.nullDevice
@@ -85,11 +85,20 @@ final class NetworkProcessMonitor: @unchecked Sendable {
 
     func stop() {
         masterHandle?.readabilityHandler = nil
-        task?.terminate()
-        try? masterHandle?.close()
+        let dyingTask = task
         task = nil
+        masterHandle?.closeFile()
         masterHandle = nil
         publish([])
+
+        guard let dyingTask else { return }
+        dyingTask.terminate()
+        let pid = dyingTask.processIdentifier
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) {
+            if dyingTask.isRunning {
+                _ = Darwin.kill(pid, SIGKILL)
+            }
+        }
     }
 
     func sample() -> [ProcStat] {
