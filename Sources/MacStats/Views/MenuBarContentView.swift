@@ -210,7 +210,19 @@ struct MenuBarContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let healthLine {
+                Text(healthLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    private var healthLine: String? {
+        var parts: [String] = []
+        if let cycles = stats.battery.cycleCount { parts.append("\(cycles) cycles") }
+        if let h = stats.battery.healthPercent { parts.append("\(Fmt.percent(h)) health") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var batteryIcon: String {

@@ -38,4 +38,25 @@ enum Fmt {
         if h > 0 { return "\(h)h \(r)m" }
         return "\(r)m"
     }
+
+    static func volts(_ v: Double) -> String {
+        String(format: "%.2f V", v)
+    }
+
+    static func milliAmps(_ ma: Int) -> String {
+        let sign = ma > 0 ? "+" : ""
+        return "\(sign)\(ma) mA"
+    }
+
+    static func watts(_ w: Double) -> String {
+        String(format: "%.2f W", w)
+    }
+
+    static func milliAmpHours(_ mAh: Int) -> String {
+        "\(mAh) mAh"
+    }
+
+    static func celsius(_ c: Double) -> String {
+        String(format: "%.1f°C", c)
+    }
 }

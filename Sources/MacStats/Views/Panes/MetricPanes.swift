@@ -269,10 +269,65 @@ struct BatteryPane: View {
                     if let m = stats.battery.timeToEmptyMinutes {
                         StatRow(label: "Time remaining", value: Fmt.minutes(m))
                     }
+                    if let w = stats.battery.wattage {
+                        StatRow(label: "Power", value: Fmt.watts(w))
+                    }
+                }
+                if hasHealthData {
+                    MetricCard(title: "Health", icon: "heart.text.square") {
+                        if let cycles = stats.battery.cycleCount {
+                            StatRow(label: "Cycle count", value: "\(cycles)")
+                        }
+                        if let h = stats.battery.healthPercent {
+                            StatRow(label: "Maximum capacity", value: Fmt.percent(h))
+                        }
+                        if let cur = stats.battery.currentMaxCapacityMAh {
+                            StatRow(label: "Full charge", value: Fmt.milliAmpHours(cur))
+                        }
+                        if let design = stats.battery.designCapacityMAh {
+                            StatRow(label: "Design capacity", value: Fmt.milliAmpHours(design))
+                        }
+                    }
+                }
+                if hasCellData {
+                    MetricCard(title: "Cell", icon: "bolt") {
+                        if let v = stats.battery.voltageVolts {
+                            StatRow(label: "Voltage", value: Fmt.volts(v))
+                        }
+                        if let ma = stats.battery.amperageMilliAmps {
+                            StatRow(label: "Current", value: Fmt.milliAmps(ma))
+                        }
+                        if let t = stats.battery.temperatureCelsius {
+                            StatRow(label: "Temperature", value: Fmt.celsius(t))
+                        }
+                    }
+                }
+                if stats.battery.deviceName != nil || stats.battery.serial != nil {
+                    MetricCard(title: "Hardware", icon: "cpu") {
+                        if let name = stats.battery.deviceName {
+                            StatRow(label: "Device", value: name)
+                        }
+                        if let s = stats.battery.serial {
+                            StatRow(label: "Serial", value: s)
+                        }
+                    }
                 }
             }
             .padding(24)
         }
+    }
+
+    private var hasHealthData: Bool {
+        stats.battery.cycleCount != nil
+            || stats.battery.healthPercent != nil
+            || stats.battery.designCapacityMAh != nil
+            || stats.battery.currentMaxCapacityMAh != nil
+    }
+
+    private var hasCellData: Bool {
+        stats.battery.voltageVolts != nil
+            || stats.battery.amperageMilliAmps != nil
+            || stats.battery.temperatureCelsius != nil
     }
 
     private var status: String {

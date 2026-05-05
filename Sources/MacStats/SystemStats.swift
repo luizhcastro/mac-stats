@@ -71,7 +71,7 @@ struct SystemSnapshot: Sendable {
         cpu: CPUMonitor.Sample(usage: 0, user: 0, system: 0, idle: 0),
         memory: MemoryMonitor.Sample(totalBytes: 0, usedBytes: 0, activeBytes: 0, wiredBytes: 0, compressedBytes: 0, freeBytes: 0, pressurePercent: 0),
         network: NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0),
-        battery: BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false),
+        battery: .empty,
         disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0),
         temperature: .empty,
         thermal: .unknown,
@@ -228,7 +228,7 @@ private actor StatsSampler {
     private var temperatureRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var ringHead = 0
 
-    private var lastBattery = BatteryMonitor.Sample(percent: 0, isCharging: false, isPluggedIn: false, timeToEmptyMinutes: nil, timeToFullMinutes: nil, hasBattery: false)
+    private var lastBattery = BatteryMonitor.Sample.empty
     private var lastBatterySampleTick: Int?
     private var lastTemperature = TemperatureMonitor.Sample.empty
     private var lastTemperatureSampleTick: Int?
