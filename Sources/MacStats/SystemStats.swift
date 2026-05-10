@@ -42,6 +42,8 @@ struct MetricHistory: Sendable {
     var diskRead: [Double]
     var diskWrite: [Double]
     var temperature: [Double]
+    var batteryPercent: [Double]
+    var batteryWattage: [Double]
 
     static let empty = MetricHistory(
         cpu: Array(repeating: 0, count: 60),
@@ -50,7 +52,9 @@ struct MetricHistory: Sendable {
         networkOut: Array(repeating: 0, count: 60),
         diskRead: Array(repeating: 0, count: 60),
         diskWrite: Array(repeating: 0, count: 60),
-        temperature: Array(repeating: 0, count: 60)
+        temperature: Array(repeating: 0, count: 60),
+        batteryPercent: Array(repeating: 0, count: 60),
+        batteryWattage: Array(repeating: 0, count: 60)
     )
 }
 
@@ -68,8 +72,8 @@ struct SystemSnapshot: Sendable {
     var processGeneration: UInt64
 
     static let empty = SystemSnapshot(
-        cpu: CPUMonitor.Sample(usage: 0, user: 0, system: 0, idle: 0),
-        memory: MemoryMonitor.Sample(totalBytes: 0, usedBytes: 0, activeBytes: 0, wiredBytes: 0, compressedBytes: 0, freeBytes: 0, pressurePercent: 0),
+        cpu: .empty,
+        memory: .empty,
         network: NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0),
         battery: .empty,
         disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0),
@@ -228,6 +232,10 @@ private actor StatsSampler {
     private var temperatureRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var ringHead = 0
 
+    private var batteryPercentRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var batteryWattageRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
+    private var batteryRingHead = 0
+
     private var lastBattery = BatteryMonitor.Sample.empty
     private var lastBatterySampleTick: Int?
     private var lastTemperature = TemperatureMonitor.Sample.empty
@@ -298,6 +306,13 @@ private actor StatsSampler {
         if detailSamplingEnabled && shouldRefreshBattery(force: forceDetailRefresh) {
             lastBattery = batteryMonitor.sample()
             lastBatterySampleTick = tickCount
+            if lastBattery.hasBattery {
+                batteryPercentRing[batteryRingHead] = lastBattery.percent
+                let raw = lastBattery.wattage ?? 0
+                let signed = lastBattery.isCharging ? raw : -raw
+                batteryWattageRing[batteryRingHead] = signed
+                batteryRingHead = (batteryRingHead + 1) % Self.historyCapacity
+            }
         }
 
         if (detailSamplingEnabled || temperatureAlwaysOn) && shouldRefreshTemperature(force: forceDetailRefresh) {
@@ -333,7 +348,9 @@ private actor StatsSampler {
                 networkOut: linearized(netOutRing),
                 diskRead: linearized(diskReadRing),
                 diskWrite: linearized(diskWriteRing),
-                temperature: linearized(temperatureRing)
+                temperature: linearized(temperatureRing),
+                batteryPercent: linearized(batteryPercentRing, head: batteryRingHead),
+                batteryWattage: linearized(batteryWattageRing, head: batteryRingHead)
             )
             : .empty
 
@@ -353,10 +370,14 @@ private actor StatsSampler {
     }
 
     private func linearized(_ ring: [Double]) -> [Double] {
+        linearized(ring, head: ringHead)
+    }
+
+    private func linearized(_ ring: [Double], head: Int) -> [Double] {
         let cap = Self.historyCapacity
         var out = [Double](repeating: 0, count: cap)
         for i in 0..<cap {
-            out[i] = ring[(ringHead + i) % cap]
+            out[i] = ring[(head + i) % cap]
         }
         return out
     }

@@ -82,6 +82,12 @@ struct MenuBarContentView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                let l = stats.cpu.loadAverage
+                Text(String(format: "load %.2f / %.2f / %.2f", l.one, l.five, l.fifteen))
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
             Sparkline(values: stats.cpuHistory, max: 100)
                 .frame(height: 28)
         }
@@ -143,6 +149,9 @@ struct MenuBarContentView: View {
             HStack(spacing: 10) {
                 Text("wired \(Fmt.bytes(stats.memory.wiredBytes))")
                 Text("comp \(Fmt.bytes(stats.memory.compressedBytes))")
+                if stats.memory.swapUsedBytes > 0 {
+                    Text("swap \(Fmt.bytes(stats.memory.swapUsedBytes))")
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)

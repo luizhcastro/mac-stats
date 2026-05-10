@@ -10,6 +10,17 @@ final class MemoryMonitor {
         var compressedBytes: UInt64
         var freeBytes: UInt64
         var pressurePercent: Double
+        var swapUsedBytes: UInt64
+        var swapTotalBytes: UInt64
+        var swapInsPerSec: Double
+        var swapOutsPerSec: Double
+
+        static let empty = Sample(
+            totalBytes: 0, usedBytes: 0, activeBytes: 0, wiredBytes: 0,
+            compressedBytes: 0, freeBytes: 0, pressurePercent: 0,
+            swapUsedBytes: 0, swapTotalBytes: 0,
+            swapInsPerSec: 0, swapOutsPerSec: 0
+        )
     }
 
     private let pageSize: UInt64 = {
@@ -25,6 +36,8 @@ final class MemoryMonitor {
         return size
     }()
 
+    private var lastSwap: (ins: UInt64, outs: UInt64, at: Date)?
+
     func sample() -> Sample {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
@@ -34,7 +47,9 @@ final class MemoryMonitor {
             }
         }
         guard result == KERN_SUCCESS else {
-            return Sample(totalBytes: totalMemory, usedBytes: 0, activeBytes: 0, wiredBytes: 0, compressedBytes: 0, freeBytes: 0, pressurePercent: 0)
+            var s = Sample.empty
+            s.totalBytes = totalMemory
+            return s
         }
 
         let active = UInt64(stats.active_count) * pageSize
@@ -44,6 +59,28 @@ final class MemoryMonitor {
         let used = active + wired + compressed
         let pressure = totalMemory > 0 ? Double(used) / Double(totalMemory) * 100 : 0
 
+        let now = Date()
+        let curIns = UInt64(stats.swapins)
+        let curOuts = UInt64(stats.swapouts)
+        var swapInRate = 0.0
+        var swapOutRate = 0.0
+        if let last = lastSwap {
+            let dt = now.timeIntervalSince(last.at)
+            if dt > 0 {
+                let dIn = SamplingMath.delta(current: curIns, previous: last.ins) ?? 0
+                let dOut = SamplingMath.delta(current: curOuts, previous: last.outs) ?? 0
+                swapInRate = Double(dIn) / dt * Double(pageSize)
+                swapOutRate = Double(dOut) / dt * Double(pageSize)
+            }
+        }
+        lastSwap = (curIns, curOuts, now)
+
+        var swap = xsw_usage()
+        var ssize = MemoryLayout<xsw_usage>.size
+        let kr = sysctlbyname("vm.swapusage", &swap, &ssize, nil, 0)
+        let swapUsed = kr == 0 ? UInt64(swap.xsu_used) : 0
+        let swapTotal = kr == 0 ? UInt64(swap.xsu_total) : 0
+
         return Sample(
             totalBytes: totalMemory,
             usedBytes: used,
@@ -51,7 +88,11 @@ final class MemoryMonitor {
             wiredBytes: wired,
             compressedBytes: compressed,
             freeBytes: free,
-            pressurePercent: pressure
+            pressurePercent: pressure,
+            swapUsedBytes: swapUsed,
+            swapTotalBytes: swapTotal,
+            swapInsPerSec: swapInRate,
+            swapOutsPerSec: swapOutRate
         )
     }
 }

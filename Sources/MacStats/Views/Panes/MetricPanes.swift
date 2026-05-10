@@ -19,6 +19,21 @@ struct CPUPane: View {
                     }
                     AreaSpark(values: stats.history.cpu, max: 100, color: .blue, height: 160)
                 }
+                if !stats.cpu.cores.isEmpty {
+                    MetricCard(title: "Per-core Usage", icon: "rectangle.split.3x1") {
+                        CoreBars(cores: stats.cpu.cores, height: 90)
+                        CoreLegend(cores: stats.cpu.cores)
+                            .padding(.top, 4)
+                    }
+                }
+                MetricCard(title: "Load Average", icon: "gauge.with.dots.needle.50percent") {
+                    HStack(spacing: 28) {
+                        LoadAvgStat(label: "1 min", value: stats.cpu.loadAverage.one)
+                        LoadAvgStat(label: "5 min", value: stats.cpu.loadAverage.five)
+                        LoadAvgStat(label: "15 min", value: stats.cpu.loadAverage.fifteen)
+                        Spacer()
+                    }
+                }
                 HStack(spacing: 16) {
                     MetricCard(title: "User", icon: "person") {
                         Text(Fmt.percent(stats.cpu.user))
@@ -102,6 +117,45 @@ struct MemoryPane: View {
                         Spacer()
                     }
                     ProgressView(value: stats.memory.pressurePercent, total: 100)
+                }
+                if stats.memory.swapTotalBytes > 0 || stats.memory.swapUsedBytes > 0 {
+                    MetricCard(title: "Swap", icon: "arrow.triangle.2.circlepath") {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(Fmt.bytes(stats.memory.swapUsedBytes))
+                                .font(.system(size: 22, weight: .semibold))
+                                .monospacedDigit()
+                            if stats.memory.swapTotalBytes > 0 {
+                                Text("of \(Fmt.bytes(stats.memory.swapTotalBytes))")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        if stats.memory.swapTotalBytes > 0 {
+                            ProgressView(
+                                value: Double(stats.memory.swapUsedBytes),
+                                total: Double(max(stats.memory.swapTotalBytes, 1))
+                            )
+                        }
+                        HStack(spacing: 24) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Swap in")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(Fmt.rate(stats.memory.swapInsPerSec))
+                                    .font(.callout)
+                                    .monospacedDigit()
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Swap out")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(Fmt.rate(stats.memory.swapOutsPerSec))
+                                    .font(.callout)
+                                    .monospacedDigit()
+                            }
+                            Spacer()
+                        }
+                    }
                 }
                 MetricCard(title: "Top Memory Processes", icon: "list.bullet") {
                     LeaderList(
@@ -260,6 +314,26 @@ struct BatteryPane: View {
                     }
                     ProgressView(value: stats.battery.percent / 100.0)
                 }
+                if hasHistory {
+                    MetricCard(title: "Charge History (last 30 min)", icon: "chart.xyaxis.line") {
+                        AreaSpark(
+                            values: stats.history.batteryPercent,
+                            max: 100,
+                            color: stats.battery.isCharging ? .green : .blue,
+                            height: 120
+                        )
+                    }
+                    MetricCard(title: "Power History (last 30 min)", icon: "bolt") {
+                        CenteredSpark(
+                            values: stats.history.batteryWattage,
+                            color: .orange,
+                            height: 100
+                        )
+                        Text(powerHistoryCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 MetricCard(title: "State", icon: "bolt.badge.clock") {
                     StatRow(label: "Charging", value: stats.battery.isCharging ? "Yes" : "No")
                     StatRow(label: "Plugged in", value: stats.battery.isPluggedIn ? "Yes" : "No")
@@ -315,6 +389,18 @@ struct BatteryPane: View {
             }
             .padding(24)
         }
+    }
+
+    private var hasHistory: Bool {
+        stats.history.batteryPercent.contains(where: { $0 > 0 })
+    }
+
+    private var powerHistoryCaption: String {
+        let vals = stats.history.batteryWattage.filter { $0 != 0 }
+        guard !vals.isEmpty else { return "No power samples yet" }
+        let avg = vals.reduce(0, +) / Double(vals.count)
+        let label = avg >= 0 ? "Avg charge" : "Avg drain"
+        return "\(label) \(String(format: "%.2f W", abs(avg)))"
     }
 
     private var hasHealthData: Bool {
@@ -414,6 +500,93 @@ struct TemperaturePane: View {
         if celsius >= 75 { return .orange }
         if celsius >= 60 { return .yellow }
         return .green
+    }
+}
+
+struct CoreBars: View {
+    let cores: [CoreUsage]
+    let height: CGFloat
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 4) {
+            ForEach(cores, id: \.coreId) { core in
+                VStack(spacing: 4) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .bottom) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(CoreBars.color(core.cluster).opacity(0.15))
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(CoreBars.color(core.cluster))
+                                .frame(height: max(2, geo.size.height * core.usage / 100))
+                        }
+                    }
+                    .frame(height: height)
+                    Text("\(core.coreId)")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    static func color(_ cluster: CoreCluster) -> Color {
+        switch cluster {
+        case .performance: return .blue
+        case .efficiency: return .green
+        case .unified: return .accentColor
+        }
+    }
+}
+
+struct CoreLegend: View {
+    let cores: [CoreUsage]
+
+    var body: some View {
+        let perfCount = cores.filter { $0.cluster == .performance }.count
+        let effCount = cores.filter { $0.cluster == .efficiency }.count
+        let unifiedCount = cores.filter { $0.cluster == .unified }.count
+        HStack(spacing: 12) {
+            if perfCount > 0 {
+                LegendDot(color: .blue, label: "P-cores (\(perfCount))")
+            }
+            if effCount > 0 {
+                LegendDot(color: .green, label: "E-cores (\(effCount))")
+            }
+            if unifiedCount > 0 {
+                LegendDot(color: .accentColor, label: "Cores (\(unifiedCount))")
+            }
+            Spacer()
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+}
+
+struct LegendDot: View {
+    let color: Color
+    let label: String
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(label)
+        }
+    }
+}
+
+struct LoadAvgStat: View {
+    let label: String
+    let value: Double
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(String(format: "%.2f", value))
+                .font(.system(size: 22, weight: .semibold))
+                .monospacedDigit()
+        }
     }
 }
 

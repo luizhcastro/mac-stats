@@ -170,6 +170,38 @@ struct DualAreaSpark: View {
     }
 }
 
+struct CenteredSpark: View {
+    let values: [Double]
+    let color: Color
+    let height: CGFloat
+
+    var body: some View {
+        let absMax = max((values.map { abs($0) }.max() ?? 1), 0.5)
+        Chart {
+            ForEach(Array(values.enumerated()), id: \.offset) { idx, v in
+                LineMark(x: .value("t", idx), y: .value("v", v))
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(color)
+                    .lineStyle(StrokeStyle(lineWidth: 1.6))
+                AreaMark(
+                    x: .value("t", idx),
+                    yStart: .value("zero", 0),
+                    yEnd: .value("v", v)
+                )
+                .interpolationMethod(.monotone)
+                .foregroundStyle(color.opacity(0.18))
+            }
+            RuleMark(y: .value("zero", 0))
+                .foregroundStyle(.secondary.opacity(0.35))
+                .lineStyle(StrokeStyle(lineWidth: 0.5))
+        }
+        .chartYScale(domain: -absMax...absMax)
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .frame(height: height)
+    }
+}
+
 enum ScaleHelper {
     static func niceMax(_ values: [Double], minimum: Double = 1) -> Double {
         let peak = values.max() ?? 0
