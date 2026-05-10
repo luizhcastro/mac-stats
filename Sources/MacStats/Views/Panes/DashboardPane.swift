@@ -42,7 +42,7 @@ struct DashboardPane: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            AreaSpark(values: stats.history.cpu, max: 100, color: .blue)
+            AreaSpark(values: stats.history.cpu.minute, max: 100, color: .blue)
         }
     }
 
@@ -59,7 +59,7 @@ struct DashboardPane: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            AreaSpark(values: stats.history.memoryPercent, max: 100, color: .green)
+            AreaSpark(values: stats.history.memoryPercent.minute, max: 100, color: .green)
         }
     }
 
@@ -70,9 +70,9 @@ struct DashboardPane: View {
                 rateBlock(symbol: "arrow.up", color: .orange, rate: stats.network.bytesOutPerSec)
             }
             DualAreaSpark(
-                inValues: stats.history.networkIn,
-                outValues: stats.history.networkOut,
-                max: ScaleHelper.niceMax(stats.history.networkIn + stats.history.networkOut, minimum: 64 * 1024)
+                inValues: stats.history.networkIn.minute,
+                outValues: stats.history.networkOut.minute,
+                max: ScaleHelper.niceMax(stats.history.networkIn.minute + stats.history.networkOut.minute, minimum: 64 * 1024)
             )
         }
     }
@@ -84,9 +84,9 @@ struct DashboardPane: View {
                 rateBlock(symbol: "arrow.up", color: .pink, rate: stats.disk.writePerSec)
             }
             DualAreaSpark(
-                inValues: stats.history.diskRead,
-                outValues: stats.history.diskWrite,
-                max: ScaleHelper.niceMax(stats.history.diskRead + stats.history.diskWrite, minimum: 256 * 1024),
+                inValues: stats.history.diskRead.minute,
+                outValues: stats.history.diskWrite.minute,
+                max: ScaleHelper.niceMax(stats.history.diskRead.minute + stats.history.diskWrite.minute, minimum: 256 * 1024),
                 inColor: .purple,
                 outColor: .pink
             )
@@ -122,8 +122,8 @@ struct DashboardPane: View {
                     .foregroundStyle(.secondary)
             }
             AreaSpark(
-                values: stats.history.temperature,
-                max: ScaleHelper.niceMax(stats.history.temperature, minimum: 80),
+                values: stats.history.temperature.minute,
+                max: ScaleHelper.niceMax(stats.history.temperature.minute, minimum: 80),
                 color: .orange
             )
         }

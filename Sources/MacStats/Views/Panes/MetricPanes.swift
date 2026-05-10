@@ -2,13 +2,15 @@ import SwiftUI
 
 struct CPUPane: View {
     @ObservedObject var stats: SystemStats
+    @State private var range: HistoryRange = .minute
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PaneHeader(
                     title: "CPU",
-                    subtitle: "Last 60 seconds"
+                    subtitle: "History range: \(range.label)",
+                    trailing: AnyView(HistoryRangePicker(selection: $range))
                 )
                 MetricCard(title: "Total Usage", icon: "cpu") {
                     HStack(alignment: .firstTextBaseline) {
@@ -17,7 +19,7 @@ struct CPUPane: View {
                             .monospacedDigit()
                         Spacer()
                     }
-                    AreaSpark(values: stats.history.cpu, max: 100, color: .blue, height: 160)
+                    AreaSpark(values: stats.history.cpu.values(for: range), max: 100, color: .blue, height: 160)
                 }
                 if !stats.cpu.cores.isEmpty {
                     MetricCard(title: "Per-core Usage", icon: "rectangle.split.3x1") {
@@ -71,11 +73,16 @@ struct CPUPane: View {
 
 struct MemoryPane: View {
     @ObservedObject var stats: SystemStats
+    @State private var range: HistoryRange = .minute
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                PaneHeader(title: "Memory", subtitle: "Allocation breakdown")
+                PaneHeader(
+                    title: "Memory",
+                    subtitle: "History range: \(range.label)",
+                    trailing: AnyView(HistoryRangePicker(selection: $range))
+                )
                 MetricCard(title: "Used", icon: "memorychip") {
                     HStack(alignment: .firstTextBaseline) {
                         Text(Fmt.bytes(stats.memory.usedBytes))
@@ -85,7 +92,7 @@ struct MemoryPane: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
-                    AreaSpark(values: stats.history.memoryPercent, max: 100, color: .green, height: 160)
+                    AreaSpark(values: stats.history.memoryPercent.values(for: range), max: 100, color: .green, height: 160)
                 }
                 HStack(spacing: 16) {
                     MetricCard(title: "Active", icon: "bolt") {
@@ -172,11 +179,16 @@ struct MemoryPane: View {
 
 struct DiskPane: View {
     @ObservedObject var stats: SystemStats
+    @State private var range: HistoryRange = .minute
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                PaneHeader(title: "Disk", subtitle: "I/O throughput and capacity")
+                PaneHeader(
+                    title: "Disk",
+                    subtitle: "History range: \(range.label)",
+                    trailing: AnyView(HistoryRangePicker(selection: $range))
+                )
                 MetricCard(title: "Throughput", icon: "internaldrive") {
                     HStack(spacing: 24) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -200,15 +212,29 @@ struct DiskPane: View {
                         Spacer()
                     }
                     DualAreaSpark(
-                        inValues: stats.history.diskRead,
-                        outValues: stats.history.diskWrite,
-                        max: ScaleHelper.niceMax(stats.history.diskRead + stats.history.diskWrite, minimum: 256 * 1024),
+                        inValues: stats.history.diskRead.values(for: range),
+                        outValues: stats.history.diskWrite.values(for: range),
+                        max: ScaleHelper.niceMax(
+                            stats.history.diskRead.values(for: range) + stats.history.diskWrite.values(for: range),
+                            minimum: 256 * 1024
+                        ),
                         inColor: .purple,
                         outColor: .pink,
                         height: 160
                     )
                 }
-                if stats.disk.capacityBytes > 0 {
+                if !stats.disk.volumes.isEmpty {
+                    MetricCard(title: "Volumes (\(stats.disk.volumes.count))", icon: "externaldrive") {
+                        VStack(spacing: 12) {
+                            ForEach(stats.disk.volumes) { vol in
+                                VolumeRow(volume: vol)
+                                if vol.id != stats.disk.volumes.last?.id {
+                                    Divider().opacity(0.4)
+                                }
+                            }
+                        }
+                    }
+                } else if stats.disk.capacityBytes > 0 {
                     MetricCard(title: "Capacity", icon: "externaldrive") {
                         let used = stats.disk.capacityBytes - stats.disk.freeBytes
                         StatRow(label: "Used", value: Fmt.bytes(used))
@@ -240,11 +266,16 @@ struct DiskPane: View {
 
 struct NetworkPane: View {
     @ObservedObject var stats: SystemStats
+    @State private var range: HistoryRange = .minute
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                PaneHeader(title: "Network", subtitle: "Live bandwidth across all interfaces")
+                PaneHeader(
+                    title: "Network",
+                    subtitle: "History range: \(range.label)",
+                    trailing: AnyView(HistoryRangePicker(selection: $range))
+                )
                 MetricCard(title: "Throughput", icon: "network") {
                     HStack(spacing: 24) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -268,15 +299,38 @@ struct NetworkPane: View {
                         Spacer()
                     }
                     DualAreaSpark(
-                        inValues: stats.history.networkIn,
-                        outValues: stats.history.networkOut,
-                        max: ScaleHelper.niceMax(stats.history.networkIn + stats.history.networkOut, minimum: 64 * 1024),
+                        inValues: stats.history.networkIn.values(for: range),
+                        outValues: stats.history.networkOut.values(for: range),
+                        max: ScaleHelper.niceMax(
+                            stats.history.networkIn.values(for: range) + stats.history.networkOut.values(for: range),
+                            minimum: 64 * 1024
+                        ),
                         height: 160
                     )
+                }
+                if stats.wifi.isEnabled {
+                    MetricCard(title: "Wi-Fi", icon: "wifi") {
+                        WiFiInfoView(info: stats.wifi)
+                    }
+                }
+                if !stats.network.interfaces.isEmpty {
+                    MetricCard(title: "Interfaces (\(stats.network.interfaces.count))", icon: "network") {
+                        VStack(spacing: 10) {
+                            ForEach(stats.network.interfaces) { iface in
+                                InterfaceRow(iface: iface)
+                                if iface.id != stats.network.interfaces.last?.id {
+                                    Divider().opacity(0.4)
+                                }
+                            }
+                        }
+                    }
                 }
                 MetricCard(title: "Session Totals", icon: "sum") {
                     StatRow(label: "Total in", value: Fmt.bytes(stats.network.totalIn))
                     StatRow(label: "Total out", value: Fmt.bytes(stats.network.totalOut))
+                    if let pip = stats.publicIP {
+                        StatRow(label: "Public IP", value: pip)
+                    }
                 }
                 MetricCard(title: "Top Network Processes", icon: "list.bullet") {
                     LeaderList(
@@ -426,11 +480,16 @@ struct BatteryPane: View {
 
 struct TemperaturePane: View {
     @ObservedObject var stats: SystemStats
+    @State private var range: HistoryRange = .minute
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                PaneHeader(title: "Temperature", subtitle: subtitle)
+                PaneHeader(
+                    title: "Temperature",
+                    subtitle: subtitle,
+                    trailing: AnyView(HistoryRangePicker(selection: $range))
+                )
                 MetricCard(title: "CPU", icon: "cpu") {
                     HStack(alignment: .firstTextBaseline) {
                         Text(Self.format(stats.temperature.cpuCelsius))
@@ -443,8 +502,8 @@ struct TemperaturePane: View {
                             .foregroundStyle(thermalColor)
                     }
                     AreaSpark(
-                        values: stats.history.temperature,
-                        max: ScaleHelper.niceMax(stats.history.temperature, minimum: 80),
+                        values: stats.history.temperature.values(for: range),
+                        max: ScaleHelper.niceMax(stats.history.temperature.values(for: range), minimum: 80),
                         color: .orange,
                         height: 160
                     )
@@ -500,6 +559,198 @@ struct TemperaturePane: View {
         if celsius >= 75 { return .orange }
         if celsius >= 60 { return .yellow }
         return .green
+    }
+}
+
+struct WiFiInfoView: View {
+    let info: WiFiInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(info.ssid ?? (info.isConnected ? "Connected" : "Not connected"))
+                    .font(.system(size: 22, weight: .semibold))
+                Spacer()
+                if info.isConnected {
+                    SignalBars(qualityPercent: info.qualityPercent)
+                    Text("\(info.rssi) dBm")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+            if info.ssid == nil && info.isEnabled {
+                Text("Grant Location permission to read SSID")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
+                if let ch = info.channel {
+                    GridRow {
+                        Text("Channel").foregroundStyle(.secondary)
+                        Text(channelText(channel: ch, band: info.bandGHz, width: info.channelWidthMHz))
+                            .monospacedDigit()
+                    }
+                }
+                if info.txRateMbps > 0 {
+                    GridRow {
+                        Text("Tx rate").foregroundStyle(.secondary)
+                        Text(String(format: "%.0f Mbps", info.txRateMbps)).monospacedDigit()
+                    }
+                }
+                if let bssid = info.bssid {
+                    GridRow {
+                        Text("BSSID").foregroundStyle(.secondary)
+                        Text(bssid).monospacedDigit().font(.caption)
+                    }
+                }
+                if let mac = info.hardwareAddress {
+                    GridRow {
+                        Text("MAC").foregroundStyle(.secondary)
+                        Text(mac).monospacedDigit().font(.caption)
+                    }
+                }
+            }
+            .font(.callout)
+        }
+    }
+
+    private func channelText(channel: Int, band: Double?, width: Int?) -> String {
+        var parts = ["#\(channel)"]
+        if let band {
+            parts.append(String(format: "%.1f GHz", band))
+        }
+        if let width {
+            parts.append("\(width) MHz")
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+struct SignalBars: View {
+    let qualityPercent: Double
+
+    var body: some View {
+        let active = max(0, min(4, Int((qualityPercent / 25).rounded())))
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(0..<4) { i in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(i < active ? Color.accentColor : Color.secondary.opacity(0.25))
+                    .frame(width: 4, height: CGFloat(6 + i * 3))
+            }
+        }
+    }
+}
+
+struct InterfaceRow: View {
+    let iface: InterfaceStats
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: iface.isUp ? "circle.fill" : "circle")
+                .font(.system(size: 7))
+                .foregroundStyle(iface.isUp ? Color.green : Color.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(iface.displayName)
+                        .font(.callout.weight(.medium))
+                    Text(iface.name)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+                if iface.ipv4 != nil || iface.ipv6 != nil {
+                    HStack(spacing: 8) {
+                        if let v4 = iface.ipv4 {
+                            Text(v4).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                        }
+                        if let v6 = iface.ipv6 {
+                            Text(v6).font(.caption2).monospacedDigit().foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down").font(.caption2).foregroundStyle(.blue)
+                    Text(Fmt.rate(iface.bytesInPerSec)).font(.caption).monospacedDigit()
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up").font(.caption2).foregroundStyle(.orange)
+                    Text(Fmt.rate(iface.bytesOutPerSec)).font(.caption).monospacedDigit()
+                }
+            }
+        }
+    }
+}
+
+struct VolumeRow: View {
+    let volume: VolumeInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Image(systemName: volume.isInternal ? "internaldrive" : "externaldrive")
+                    .foregroundStyle(.secondary)
+                Text(volume.displayName)
+                    .font(.callout.weight(.medium))
+                Text(volume.bsdName)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+                if volume.isReadOnly {
+                    Text("read-only")
+                        .font(.caption2)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.secondary.opacity(0.18)))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                smartBadge
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(Fmt.bytes(volume.usedBytes)) / \(Fmt.bytes(volume.totalBytes))")
+                    .font(.callout)
+                    .monospacedDigit()
+                Text("· \(Fmt.bytes(volume.freeBytes)) free")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                Spacer()
+                Text(Fmt.percent(volume.usagePercent))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            ProgressView(
+                value: Double(volume.usedBytes),
+                total: Double(max(volume.totalBytes, 1))
+            )
+            Text(volume.mountPath)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    private var smartBadge: some View {
+        let (text, color): (String, Color) = {
+            switch volume.smartStatus {
+            case .healthy:     return ("SMART OK", .green)
+            case .failing:     return ("SMART FAIL", .red)
+            case .unsupported: return ("SMART N/A", .secondary)
+            case .unknown:     return ("SMART ?", .secondary)
+            }
+        }()
+        return Text(text)
+            .font(.caption2.weight(.medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.18)))
+            .foregroundStyle(color)
     }
 }
 

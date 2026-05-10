@@ -38,6 +38,8 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSLocationUsageDescription</key><string>MacStats reads the current Wi-Fi SSID and signal information so it can show the network you are connected to.</string>
+    <key>NSLocationWhenInUseUsageDescription</key><string>MacStats reads the current Wi-Fi SSID and signal information so it can show the network you are connected to.</string>
 </dict>
 </plist>
 PLIST

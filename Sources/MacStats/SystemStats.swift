@@ -34,25 +34,57 @@ struct ProcessLeaders: Sendable {
     static let empty = ProcessLeaders(cpu: [], memory: [], disk: [], network: [], energy: [])
 }
 
+enum HistoryRange: String, Sendable, CaseIterable, Identifiable {
+    case minute, hour, day
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .minute: return "1m"
+        case .hour:   return "1h"
+        case .day:    return "24h"
+        }
+    }
+}
+
+struct MetricSeries: Sendable {
+    var minute: [Double]
+    var hour: [Double]
+    var day: [Double]
+
+    func values(for range: HistoryRange) -> [Double] {
+        switch range {
+        case .minute: return minute
+        case .hour:   return hour
+        case .day:    return day
+        }
+    }
+
+    static let empty = MetricSeries(
+        minute: Array(repeating: 0, count: 60),
+        hour: Array(repeating: 0, count: 360),
+        day: Array(repeating: 0, count: 1440)
+    )
+}
+
 struct MetricHistory: Sendable {
-    var cpu: [Double]
-    var memoryPercent: [Double]
-    var networkIn: [Double]
-    var networkOut: [Double]
-    var diskRead: [Double]
-    var diskWrite: [Double]
-    var temperature: [Double]
+    var cpu: MetricSeries
+    var memoryPercent: MetricSeries
+    var networkIn: MetricSeries
+    var networkOut: MetricSeries
+    var diskRead: MetricSeries
+    var diskWrite: MetricSeries
+    var temperature: MetricSeries
     var batteryPercent: [Double]
     var batteryWattage: [Double]
 
     static let empty = MetricHistory(
-        cpu: Array(repeating: 0, count: 60),
-        memoryPercent: Array(repeating: 0, count: 60),
-        networkIn: Array(repeating: 0, count: 60),
-        networkOut: Array(repeating: 0, count: 60),
-        diskRead: Array(repeating: 0, count: 60),
-        diskWrite: Array(repeating: 0, count: 60),
-        temperature: Array(repeating: 0, count: 60),
+        cpu: .empty,
+        memoryPercent: .empty,
+        networkIn: .empty,
+        networkOut: .empty,
+        diskRead: .empty,
+        diskWrite: .empty,
+        temperature: .empty,
         batteryPercent: Array(repeating: 0, count: 60),
         batteryWattage: Array(repeating: 0, count: 60)
     )
@@ -62,6 +94,8 @@ struct SystemSnapshot: Sendable {
     var cpu: CPUMonitor.Sample
     var memory: MemoryMonitor.Sample
     var network: NetworkMonitor.Sample
+    var wifi: WiFiInfo
+    var publicIP: String?
     var battery: BatteryMonitor.Sample
     var disk: DiskMonitor.Sample
     var temperature: TemperatureMonitor.Sample
@@ -74,9 +108,11 @@ struct SystemSnapshot: Sendable {
     static let empty = SystemSnapshot(
         cpu: .empty,
         memory: .empty,
-        network: NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0),
+        network: NetworkMonitor.Sample(bytesInPerSec: 0, bytesOutPerSec: 0, totalIn: 0, totalOut: 0, interfaces: []),
+        wifi: .empty,
+        publicIP: nil,
         battery: .empty,
-        disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0),
+        disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0, volumes: []),
         temperature: .empty,
         thermal: .unknown,
         history: .empty,
@@ -99,12 +135,14 @@ final class SystemStats: ObservableObject {
     var cpu: CPUMonitor.Sample { snapshot.cpu }
     var memory: MemoryMonitor.Sample { snapshot.memory }
     var network: NetworkMonitor.Sample { snapshot.network }
+    var wifi: WiFiInfo { snapshot.wifi }
+    var publicIP: String? { snapshot.publicIP }
     var battery: BatteryMonitor.Sample { snapshot.battery }
     var disk: DiskMonitor.Sample { snapshot.disk }
     var temperature: TemperatureMonitor.Sample { snapshot.temperature }
     var thermal: ThermalLevel { snapshot.thermal }
     var history: MetricHistory { snapshot.history }
-    var cpuHistory: [Double] { snapshot.history.cpu }
+    var cpuHistory: [Double] { snapshot.history.cpu.minute }
     var processLeaders: ProcessLeaders { snapshot.processLeaders }
     var allProcesses: [ProcessMonitor.ProcStat] { snapshot.allProcesses }
 
@@ -201,6 +239,69 @@ final class SystemStats: ObservableObject {
     }
 }
 
+private struct MetricRings {
+    static let minuteCapacity = 60
+    static let hourCapacity = 360
+    static let dayCapacity = 1440
+    static let hourDownsampleEvery = 10
+    static let dayDownsampleEvery = 60
+
+    var minute: [Double]
+    var hour: [Double]
+    var day: [Double]
+    var minuteHead = 0
+    var hourHead = 0
+    var dayHead = 0
+    var hourSum: Double = 0
+    var hourCount: Int = 0
+    var daySum: Double = 0
+    var dayCount: Int = 0
+
+    init() {
+        minute = [Double](repeating: 0, count: Self.minuteCapacity)
+        hour = [Double](repeating: 0, count: Self.hourCapacity)
+        day = [Double](repeating: 0, count: Self.dayCapacity)
+    }
+
+    mutating func append(_ v: Double) {
+        minute[minuteHead] = v
+        minuteHead = (minuteHead + 1) % Self.minuteCapacity
+
+        hourSum += v
+        hourCount += 1
+        if hourCount >= Self.hourDownsampleEvery {
+            hour[hourHead] = hourSum / Double(hourCount)
+            hourHead = (hourHead + 1) % Self.hourCapacity
+            hourSum = 0
+            hourCount = 0
+        }
+
+        daySum += v
+        dayCount += 1
+        if dayCount >= Self.dayDownsampleEvery {
+            day[dayHead] = daySum / Double(dayCount)
+            dayHead = (dayHead + 1) % Self.dayCapacity
+            daySum = 0
+            dayCount = 0
+        }
+    }
+
+    func snapshot() -> MetricSeries {
+        MetricSeries(
+            minute: linearized(minute, head: minuteHead),
+            hour: linearized(hour, head: hourHead),
+            day: linearized(day, head: dayHead)
+        )
+    }
+
+    private func linearized(_ ring: [Double], head: Int) -> [Double] {
+        let cap = ring.count
+        var out = [Double](repeating: 0, count: cap)
+        for i in 0..<cap { out[i] = ring[(head + i) % cap] }
+        return out
+    }
+}
+
 private actor StatsSampler {
     private static let processRefreshIntervalTicks = 2
     private static let batteryRefreshIntervalTicks = 30
@@ -215,6 +316,7 @@ private actor StatsSampler {
     private let processMonitor = ProcessMonitor()
     private let networkProcessMonitor = NetworkProcessMonitor()
     private let temperatureMonitor = TemperatureMonitor()
+    private let wifiMonitor = WiFiMonitor()
 
     private var tickCount = 0
     private var detailSamplingEnabled = false
@@ -223,14 +325,13 @@ private actor StatsSampler {
     private var networkProcessSamplingEnabled = false
     private var temperatureAlwaysOn = false
 
-    private var cpuRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
-    private var memRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
-    private var netInRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
-    private var netOutRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
-    private var diskReadRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
-    private var diskWriteRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
-    private var temperatureRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
-    private var ringHead = 0
+    private var cpuRings = MetricRings()
+    private var memRings = MetricRings()
+    private var netInRings = MetricRings()
+    private var netOutRings = MetricRings()
+    private var diskReadRings = MetricRings()
+    private var diskWriteRings = MetricRings()
+    private var temperatureRings = MetricRings()
 
     private var batteryPercentRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var batteryWattageRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
@@ -243,6 +344,12 @@ private actor StatsSampler {
     private var lastProcessLeaders = ProcessLeaders.empty
     private var lastProcessList: [ProcessMonitor.ProcStat] = []
     private var processGeneration: UInt64 = 0
+
+    private var publicIP: String?
+    private var publicIPFetchedAt: Date?
+    private var publicIPInFlight = false
+    private var lastWiFi = WiFiInfo.empty
+    private static let publicIPTTL: TimeInterval = 600
 
     init() {
         _ = cpuMonitor.sample()
@@ -283,25 +390,31 @@ private actor StatsSampler {
     func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {
         let cpu = cpuMonitor.sample()
         let memory = memoryMonitor.sample()
-        let network = networkMonitor.sample()
+        let network = networkMonitor.sample(includeInterfaceDetail: detailSamplingEnabled)
+        let wifi = detailSamplingEnabled ? wifiMonitor.sample() : lastWiFi
+        if detailSamplingEnabled { lastWiFi = wifi }
         let disk = diskMonitor.sample(
             includeVolumeStats: detailSamplingEnabled,
             forceVolumeStatsRefresh: forceDetailRefresh
         )
 
+        if detailSamplingEnabled {
+            maybeFetchPublicIP()
+        }
+
         tickCount += 1
-        cpuRing[ringHead] = cpu.usage
         let memTotal = max(memory.totalBytes, 1)
-        memRing[ringHead] = Double(memory.usedBytes) / Double(memTotal) * 100.0
-        netInRing[ringHead] = network.bytesInPerSec
-        netOutRing[ringHead] = network.bytesOutPerSec
-        diskReadRing[ringHead] = disk.readPerSec
-        diskWriteRing[ringHead] = disk.writePerSec
+        let memPercent = Double(memory.usedBytes) / Double(memTotal) * 100.0
         let tempPoint = lastTemperature.cpuCelsius > 0
             ? lastTemperature.cpuCelsius
             : lastTemperature.maxCelsius
-        temperatureRing[ringHead] = max(tempPoint, 0)
-        ringHead = (ringHead + 1) % Self.historyCapacity
+        cpuRings.append(cpu.usage)
+        memRings.append(memPercent)
+        netInRings.append(network.bytesInPerSec)
+        netOutRings.append(network.bytesOutPerSec)
+        diskReadRings.append(disk.readPerSec)
+        diskWriteRings.append(disk.writePerSec)
+        temperatureRings.append(max(tempPoint, 0))
 
         if detailSamplingEnabled && shouldRefreshBattery(force: forceDetailRefresh) {
             lastBattery = batteryMonitor.sample()
@@ -342,13 +455,13 @@ private actor StatsSampler {
 
         let history: MetricHistory = detailSamplingEnabled
             ? MetricHistory(
-                cpu: linearized(cpuRing),
-                memoryPercent: linearized(memRing),
-                networkIn: linearized(netInRing),
-                networkOut: linearized(netOutRing),
-                diskRead: linearized(diskReadRing),
-                diskWrite: linearized(diskWriteRing),
-                temperature: linearized(temperatureRing),
+                cpu: cpuRings.snapshot(),
+                memoryPercent: memRings.snapshot(),
+                networkIn: netInRings.snapshot(),
+                networkOut: netOutRings.snapshot(),
+                diskRead: diskReadRings.snapshot(),
+                diskWrite: diskWriteRings.snapshot(),
+                temperature: temperatureRings.snapshot(),
                 batteryPercent: linearized(batteryPercentRing, head: batteryRingHead),
                 batteryWattage: linearized(batteryWattageRing, head: batteryRingHead)
             )
@@ -358,6 +471,8 @@ private actor StatsSampler {
             cpu: cpu,
             memory: memory,
             network: network,
+            wifi: wifi,
+            publicIP: publicIP,
             battery: lastBattery,
             disk: disk,
             temperature: lastTemperature,
@@ -369,8 +484,35 @@ private actor StatsSampler {
         )
     }
 
-    private func linearized(_ ring: [Double]) -> [Double] {
-        linearized(ring, head: ringHead)
+    private func maybeFetchPublicIP() {
+        if publicIPInFlight { return }
+        let now = Date()
+        let stale = publicIPFetchedAt.map { now.timeIntervalSince($0) > Self.publicIPTTL } ?? true
+        guard stale else { return }
+        publicIPInFlight = true
+        Task { [weak self] in
+            let ip = await StatsSampler.fetchPublicIP()
+            await self?.applyPublicIP(ip)
+        }
+    }
+
+    private func applyPublicIP(_ ip: String?) {
+        publicIPInFlight = false
+        publicIPFetchedAt = Date()
+        if let ip { publicIP = ip }
+    }
+
+    private static func fetchPublicIP() async -> String? {
+        guard let url = URL(string: "https://api.ipify.org") else { return nil }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 5
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            let s = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return s.isEmpty ? nil : s
+        } catch {
+            return nil
+        }
     }
 
     private func linearized(_ ring: [Double], head: Int) -> [Double] {

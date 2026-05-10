@@ -170,6 +170,21 @@ struct DualAreaSpark: View {
     }
 }
 
+struct HistoryRangePicker: View {
+    @Binding var selection: HistoryRange
+
+    var body: some View {
+        Picker("Range", selection: $selection) {
+            ForEach(HistoryRange.allCases) { r in
+                Text(r.label).tag(r)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 160)
+    }
+}
+
 struct CenteredSpark: View {
     let values: [Double]
     let color: Color
