@@ -4,11 +4,13 @@ import AppKit
 enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
     case dashboard
     case cpu
+    case gpu
     case memory
     case disk
     case network
     case battery
     case temperature
+    case fans
     case processes
 
     var id: String { rawValue }
@@ -17,11 +19,13 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .dashboard:   return "Overview"
         case .cpu:         return "CPU"
+        case .gpu:         return "GPU"
         case .memory:      return "Memory"
         case .disk:        return "Disk"
         case .network:     return "Network"
         case .battery:     return "Battery"
         case .temperature: return "Temperature"
+        case .fans:        return "Fans"
         case .processes:   return "Processes"
         }
     }
@@ -30,11 +34,13 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .dashboard:   return "square.grid.2x2"
         case .cpu:         return "cpu"
+        case .gpu:         return "display"
         case .memory:      return "memorychip"
         case .disk:        return "internaldrive"
         case .network:     return "network"
         case .battery:     return "battery.100"
         case .temperature: return "thermometer"
+        case .fans:        return "fanblades"
         case .processes:   return "list.bullet.rectangle"
         }
     }
@@ -52,6 +58,9 @@ struct MainWindowView: View {
                 }
                 Section("Hardware") {
                     sidebarRow(.cpu)
+                    if stats.gpu.hasReadings {
+                        sidebarRow(.gpu)
+                    }
                     sidebarRow(.memory)
                     sidebarRow(.disk)
                     sidebarRow(.network)
@@ -60,6 +69,9 @@ struct MainWindowView: View {
                     }
                     if stats.temperature.hasReadings {
                         sidebarRow(.temperature)
+                    }
+                    if stats.fans.supported {
+                        sidebarRow(.fans)
                     }
                 }
                 Section("Activity") {
@@ -87,11 +99,13 @@ struct MainWindowView: View {
         switch selection {
         case .dashboard: DashboardPane(stats: stats)
         case .cpu:       CPUPane(stats: stats)
+        case .gpu:       GPUPane(stats: stats)
         case .memory:    MemoryPane(stats: stats)
         case .disk:      DiskPane(stats: stats)
         case .network:   NetworkPane(stats: stats)
         case .battery:   BatteryPane(stats: stats)
         case .temperature: TemperaturePane(stats: stats)
+        case .fans:      FansPane(stats: stats)
         case .processes: ProcessesPane(stats: stats)
         }
     }

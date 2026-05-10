@@ -478,6 +478,138 @@ struct BatteryPane: View {
     }
 }
 
+struct FansPane: View {
+    @ObservedObject var stats: SystemStats
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PaneHeader(title: "Fans", subtitle: subtitle)
+                if stats.fans.fans.isEmpty {
+                    MetricCard(title: "No fans detected", icon: "fanblades.slash") {
+                        Text(emptyMessage)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ForEach(stats.fans.fans) { fan in
+                        MetricCard(title: fan.name, icon: "fanblades") {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("\(fan.currentRPM)")
+                                    .font(.system(size: 36, weight: .semibold))
+                                    .monospacedDigit()
+                                Text("RPM")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                if let target = fan.targetRPM, target > 0 {
+                                    Text("target \(target)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                            }
+                            if fan.maxRPM > fan.minRPM {
+                                ProgressView(value: fan.loadPercent, total: 100)
+                            }
+                            HStack {
+                                Text("min \(fan.minRPM)")
+                                Spacer()
+                                Text("max \(fan.maxRPM)")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        }
+                    }
+                }
+            }
+            .padding(24)
+        }
+    }
+
+    private var subtitle: String {
+        if !stats.fans.supported { return "SMC unavailable" }
+        if stats.fans.fans.isEmpty { return "No fan sensors reported" }
+        return "Live SMC fan sensors"
+    }
+
+    private var emptyMessage: String {
+        stats.fans.supported
+            ? "This Mac reports zero fans (typical of fanless models like MacBook Air M-series)."
+            : "Could not open AppleSMC service."
+    }
+}
+
+struct GPUPane: View {
+    @ObservedObject var stats: SystemStats
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PaneHeader(
+                    title: "GPU",
+                    subtitle: stats.gpu.primaryName ?? subtitle
+                )
+                MetricCard(title: "Utilization", icon: "display") {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(Fmt.percent(stats.gpu.utilizationPercent))
+                            .font(.system(size: 36, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(GPUPane.color(for: stats.gpu.utilizationPercent))
+                        Spacer()
+                    }
+                    ProgressView(value: stats.gpu.utilizationPercent, total: 100)
+                }
+                HStack(spacing: 16) {
+                    MetricCard(title: "Renderer", icon: "paintbrush") {
+                        Text(Fmt.percent(stats.gpu.rendererUtilizationPercent))
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    MetricCard(title: "Tiler", icon: "square.grid.3x3") {
+                        Text(Fmt.percent(stats.gpu.tilerUtilizationPercent))
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    MetricCard(title: "Devices", icon: "cube") {
+                        Text("\(stats.gpu.deviceCount)")
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                }
+                if stats.gpu.vramUsedBytes > 0 {
+                    MetricCard(title: "VRAM in use", icon: "memorychip") {
+                        Text(Fmt.bytes(stats.gpu.vramUsedBytes))
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                }
+                if stats.temperature.gpuCelsius > 0 {
+                    MetricCard(title: "GPU Temperature", icon: "thermometer") {
+                        Text(TemperaturePane.format(stats.temperature.gpuCelsius))
+                            .font(.system(size: 22, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(TemperaturePane.color(for: stats.temperature.gpuCelsius))
+                    }
+                }
+            }
+            .padding(24)
+        }
+    }
+
+    private var subtitle: String {
+        stats.gpu.hasReadings
+            ? "Live IOAccelerator counters"
+            : "No GPU sensors available"
+    }
+
+    static func color(for util: Double) -> Color {
+        if util >= 80 { return .red }
+        if util >= 50 { return .orange }
+        if util >= 25 { return .yellow }
+        return .green
+    }
+}
+
 struct TemperaturePane: View {
     @ObservedObject var stats: SystemStats
     @State private var range: HistoryRange = .minute

@@ -99,6 +99,8 @@ struct SystemSnapshot: Sendable {
     var battery: BatteryMonitor.Sample
     var disk: DiskMonitor.Sample
     var temperature: TemperatureMonitor.Sample
+    var gpu: GPUMonitor.Sample
+    var fans: FanMonitor.Sample
     var thermal: ThermalLevel
     var history: MetricHistory
     var processLeaders: ProcessLeaders
@@ -114,6 +116,8 @@ struct SystemSnapshot: Sendable {
         battery: .empty,
         disk: DiskMonitor.Sample(readPerSec: 0, writePerSec: 0, totalRead: 0, totalWritten: 0, capacityBytes: 0, freeBytes: 0, volumes: []),
         temperature: .empty,
+        gpu: .empty,
+        fans: .empty,
         thermal: .unknown,
         history: .empty,
         processLeaders: .empty,
@@ -140,6 +144,8 @@ final class SystemStats: ObservableObject {
     var battery: BatteryMonitor.Sample { snapshot.battery }
     var disk: DiskMonitor.Sample { snapshot.disk }
     var temperature: TemperatureMonitor.Sample { snapshot.temperature }
+    var gpu: GPUMonitor.Sample { snapshot.gpu }
+    var fans: FanMonitor.Sample { snapshot.fans }
     var thermal: ThermalLevel { snapshot.thermal }
     var history: MetricHistory { snapshot.history }
     var cpuHistory: [Double] { snapshot.history.cpu.minute }
@@ -306,6 +312,8 @@ private actor StatsSampler {
     private static let processRefreshIntervalTicks = 2
     private static let batteryRefreshIntervalTicks = 30
     private static let temperatureRefreshIntervalTicks = 5
+    private static let gpuRefreshIntervalTicks = 5
+    private static let fanRefreshIntervalTicks = 5
     private static let historyCapacity = 60
 
     private let cpuMonitor = CPUMonitor()
@@ -317,6 +325,8 @@ private actor StatsSampler {
     private let networkProcessMonitor = NetworkProcessMonitor()
     private let temperatureMonitor = TemperatureMonitor()
     private let wifiMonitor = WiFiMonitor()
+    private let gpuMonitor = GPUMonitor()
+    private let fanMonitor = FanMonitor()
 
     private var tickCount = 0
     private var detailSamplingEnabled = false
@@ -341,6 +351,10 @@ private actor StatsSampler {
     private var lastBatterySampleTick: Int?
     private var lastTemperature = TemperatureMonitor.Sample.empty
     private var lastTemperatureSampleTick: Int?
+    private var lastGPU = GPUMonitor.Sample.empty
+    private var lastGPUSampleTick: Int?
+    private var lastFans = FanMonitor.Sample.empty
+    private var lastFansSampleTick: Int?
     private var lastProcessLeaders = ProcessLeaders.empty
     private var lastProcessList: [ProcessMonitor.ProcStat] = []
     private var processGeneration: UInt64 = 0
@@ -433,6 +447,16 @@ private actor StatsSampler {
             lastTemperatureSampleTick = tickCount
         }
 
+        if detailSamplingEnabled && shouldRefreshGPU(force: forceDetailRefresh) {
+            lastGPU = gpuMonitor.sample()
+            lastGPUSampleTick = tickCount
+        }
+
+        if detailSamplingEnabled && shouldRefreshFans(force: forceDetailRefresh) {
+            lastFans = fanMonitor.sample()
+            lastFansSampleTick = tickCount
+        }
+
         let thermal = ThermalLevel.current()
 
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
@@ -476,6 +500,8 @@ private actor StatsSampler {
             battery: lastBattery,
             disk: disk,
             temperature: lastTemperature,
+            gpu: lastGPU,
+            fans: lastFans,
             thermal: thermal,
             history: history,
             processLeaders: lastProcessLeaders,
@@ -534,6 +560,18 @@ private actor StatsSampler {
         if force { return true }
         guard let lastTemperatureSampleTick else { return true }
         return tickCount - lastTemperatureSampleTick >= Self.temperatureRefreshIntervalTicks
+    }
+
+    private func shouldRefreshGPU(force: Bool) -> Bool {
+        if force { return true }
+        guard let lastGPUSampleTick else { return true }
+        return tickCount - lastGPUSampleTick >= Self.gpuRefreshIntervalTicks
+    }
+
+    private func shouldRefreshFans(force: Bool) -> Bool {
+        if force { return true }
+        guard let lastFansSampleTick else { return true }
+        return tickCount - lastFansSampleTick >= Self.fanRefreshIntervalTicks
     }
 
     private func shouldRefreshProcesses(force: Bool) -> Bool {
