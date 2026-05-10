@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static func killOrphanNettops() {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        task.arguments = ["-f", "nettop -P -x -J bytes_in,bytes_out"]
+        task.arguments = ["-f", "^/usr/bin/nettop -P -x -J bytes_in"]
         task.standardOutput = FileHandle.nullDevice
         task.standardError = FileHandle.nullDevice
         try? task.run()
