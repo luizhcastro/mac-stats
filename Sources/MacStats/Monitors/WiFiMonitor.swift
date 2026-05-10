@@ -47,17 +47,19 @@ final class WiFiMonitor {
         if let ch = channel {
             channelNumber = Int(ch.channelNumber)
             switch ch.channelBand {
-            case .band2GHz: bandGHz = 2.4
-            case .band5GHz: bandGHz = 5.0
-            case .band6GHz: bandGHz = 6.0
-            @unknown default: bandGHz = nil
+            case .band2GHz:    bandGHz = 2.4
+            case .band5GHz:    bandGHz = 5.0
+            case .band6GHz:    bandGHz = 6.0
+            case .bandUnknown: bandGHz = nil
+            @unknown default:  bandGHz = nil
             }
             switch ch.channelWidth {
-            case .width20MHz: widthMHz = 20
-            case .width40MHz: widthMHz = 40
-            case .width80MHz: widthMHz = 80
-            case .width160MHz: widthMHz = 160
-            @unknown default: widthMHz = nil
+            case .width20MHz:   widthMHz = 20
+            case .width40MHz:   widthMHz = 40
+            case .width80MHz:   widthMHz = 80
+            case .width160MHz:  widthMHz = 160
+            case .widthUnknown: widthMHz = nil
+            @unknown default:   widthMHz = nil
             }
         }
 

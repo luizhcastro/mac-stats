@@ -13,7 +13,8 @@ Native macOS menu bar system monitor. Inspired by iStat Menus. Personal use, not
 
 - App Store distribution (no sandboxing, no notarization pipeline).
 - Cross-platform. macOS 13+ only (uses modern SwiftUI APIs + IOKit).
-- Fan RPM and SMC voltage/current sensors. Private SMC keys vary per chip — deferred until needed. (CPU/GPU/SOC temperatures *are* supported via IOHID; see below.)
+- SMC voltage / current sensors. Keys vary per chip family and aren't mapped. (Fan RPM *is* supported via the SMC client added in v0.3.0; CPU/GPU/SOC temperatures via IOHID.)
+- Threshold-based notifications and world clocks / weather (intentionally out of scope vs iStat Menus parity).
 
 ## Stack
 
@@ -49,14 +50,18 @@ Sources/MacStats/
 ├── Formatters.swift             # byte/rate/percent formatting
 ├── ProcessKill.swift            # confirm-and-kill helper used by leader rows
 ├── Monitors/                    # stateless-ish samplers, one per hardware domain
-│   ├── CPUMonitor.swift         # host_statistics HOST_CPU_LOAD_INFO
-│   ├── MemoryMonitor.swift      # host_statistics64 HOST_VM_INFO64
-│   ├── NetworkMonitor.swift     # getifaddrs + if_data
-│   ├── DiskMonitor.swift        # IOKit IOBlockStorageDriver + cached volume stats
-│   ├── BatteryMonitor.swift     # IOPowerSources
+│   ├── CPUMonitor.swift         # aggregate host_statistics + per-core host_processor_info + getloadavg
+│   ├── MemoryMonitor.swift      # host_statistics64 HOST_VM_INFO64 + vm.swapusage + swap-in/out rates
+│   ├── NetworkMonitor.swift     # getifaddrs + if_data; per-iface IPs gated to detail tier
+│   ├── WiFiMonitor.swift        # CoreWLAN: SSID, RSSI, channel/band/width, txRate
+│   ├── DiskMonitor.swift        # IOKit IOBlockStorageDriver + per-volume capacity + diskutil SMART
+│   ├── BatteryMonitor.swift     # IOPowerSources + AppleSmartBattery registry
 │   ├── ProcessMonitor.swift     # libproc: proc_listpids + PROC_PIDTASKALLINFO + rusage
 │   ├── NetworkProcessMonitor.swift  # spawns `nettop` and parses per-process bytes_in/out
 │   ├── TemperatureMonitor.swift # private IOHIDEventSystemClient: CPU/GPU/SOC thermal sensors
+│   ├── GPUMonitor.swift         # IOAccelerator → PerformanceStatistics utilization + vRAM
+│   ├── SMCClient.swift          # AppleSMC user client (kSMCHandleYPCEvent dispatch)
+│   ├── FanMonitor.swift         # SMC F<i>Ac/Mn/Mx/Tg/ID → FanInfo[]
 │   └── SamplingMath.swift       # shared delta / rate helpers (handles counter rollover)
 └── Views/
     ├── SingleMetricLabel.swift     # one metric in the menu bar (icon above compact value)
@@ -67,7 +72,7 @@ Sources/MacStats/
     ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, AreaSpark, DualAreaSpark, ScaleHelper
     └── Panes/
         ├── DashboardPane.swift     # at-a-glance card grid (cpu, mem, network, disk, battery, temperature)
-        ├── MetricPanes.swift       # CPU / Memory / Disk / Network / Battery / Temperature panes + LeaderList
+        ├── MetricPanes.swift       # CPU / GPU / Memory / Disk / Network / Battery / Temperature / Fans + LeaderList
         └── ProcessesPane.swift     # full filterable / sortable process table
 
 Resources/
@@ -87,8 +92,8 @@ design_handoff_macstats_logo/   # canonical icon source (SVG + sized PNGs + READ
 
 Sampling is split into two tiers to keep idle cost low:
 
-- **Always-on, cheap**: CPU, memory, network, disk I/O rate, thermal pressure (`ProcessInfo.thermalState`). Every tick.
-- **Detail-only, expensive**: battery (IOKit power source query), full process list (iterating every PID + `proc_pidinfo` + rusage), volume capacity (`URL.resourceValues` for `volumeAvailableCapacityForImportantUsage`, which triggers a cache-delete XPC roundtrip), and temperature (IOHID event copy across all sensors).
+- **Always-on, cheap**: CPU (aggregate + per-core), memory + swap (sysctl), network aggregate counters, disk I/O rate, thermal pressure (`ProcessInfo.thermalState`). Every tick.
+- **Detail-only, expensive**: battery (IOKit power source query), full process list (iterating every PID + `proc_pidinfo` + rusage), per-volume capacity / SMART (`URL.resourceValues` XPC + `diskutil info -plist` spawn), per-interface IPv4 / IPv6 enrichment (`getnameinfo`), Wi-Fi info (CoreWLAN), GPU stats (IOAccelerator copy), fan readings (SMC user client), temperature (IOHID event copy across all sensors), public IP (HTTPS request).
 
 `SystemStats` exposes three independent **refcount** APIs instead of plain on/off setters:
 
@@ -100,10 +105,14 @@ Each consumer (popover, NetworkPane, ProcessesPane) calls retain on appear / ope
 
 Additional cadences inside the detail tier:
 
-- Battery: every 30 ticks (~30 s) — a `lastBatterySampleTick` counter spaces it out.
+- Battery: every 30 ticks (~30 s) — a `lastBatterySampleTick` counter spaces it out. Each refresh appends to a 60-slot ring (= 30 min of charge % + signed wattage history).
 - Processes: every 2 ticks when detail sampling is on.
-- Volume stats: cached for 30 s; stale entries refresh on the next detail tick.
+- Volume stats: cached for 30 s; SMART per disk cached for 5 min.
 - Temperature: every 5 ticks (~5 s) — `lastTemperatureSampleTick`. CPU temp is pushed into a 60-sample ring every tick (repeats last sample) so the sparkline is smooth. Sampling is also kept alive outside the detail tier when the user has the temperature metric selected in the menu bar (`StatusBarController` calls `setTemperatureAlwaysOn(true)` on prefs change), so a visible status item stays current even with the popover and main window closed.
+- GPU + Fans: every 5 ticks (~5 s) — `lastGPUSampleTick` / `lastFansSampleTick`. Both fail-closed (`hasReadings = false`) on hardware that doesn't expose the sensors, and the sidebar entry hides itself.
+- Public IP: kicked from the actor as a detached `Task` when the cache is older than 10 min; `applyPublicIP(_:)` writes back through actor isolation.
+
+Long-window history: each "rate" metric (CPU, memory %, network in/out, disk read/write, temperature) is fed into a `MetricRings` bundle that keeps three rings — 60 samples @ 1 Hz (`minute`), 360 samples @ 10 s (`hour`), and 1440 samples @ 1 min (`day`) — using rolling-average downsampling. Panes use a `HistoryRangePicker` to switch the rendered series.
 
 When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(forceDetailRefresh: true)` so the dropdown shows fresh numbers immediately instead of waiting up to 30 s for the next battery / temperature / volume-stats refresh.
 
