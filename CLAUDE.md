@@ -92,8 +92,8 @@ design_handoff_macstats_logo/   # canonical icon source (SVG + sized PNGs + READ
 
 Sampling is split into two tiers to keep idle cost low:
 
-- **Always-on, cheap**: CPU (aggregate + per-core), memory + swap (sysctl), network aggregate counters, disk I/O rate, thermal pressure (`ProcessInfo.thermalState`). Every tick.
-- **Detail-only, expensive**: battery (IOKit power source query), full process list (iterating every PID + `proc_pidinfo` + rusage), per-volume capacity / SMART (`URL.resourceValues` XPC + `diskutil info -plist` spawn), per-interface IPv4 / IPv6 enrichment (`getnameinfo`), Wi-Fi info (CoreWLAN), GPU stats (IOAccelerator copy), fan readings (SMC user client), temperature (IOHID event copy across all sensors), public IP (HTTPS request).
+- **Always-on, cheap**: CPU aggregate, memory + swap (sysctl), network aggregate counters (allocation-free `getifaddrs` walk, no per-interface structs), disk I/O rate (cached `IOBlockStorageDriver` services, 30 s re-enumeration + immediate refresh when a cached service dies; counters read via `CFDictionaryGetValue`, no dict bridging), thermal pressure (`ProcessInfo.thermalState`). Every tick. The 1 s loop sleeps with 100 ms tolerance so the kernel can coalesce timer wakeups.
+- **Detail-only, expensive**: per-core CPU (`host_processor_info`), battery (IOKit power source query), full process list (iterating every PID + `proc_pidinfo` + rusage), per-volume capacity / SMART (`URL.resourceValues` XPC + `diskutil info -plist` spawn), per-interface IPv4 / IPv6 enrichment (`getnameinfo`), Wi-Fi info (CoreWLAN), GPU stats (IOAccelerator copy), fan readings (SMC user client), temperature (IOHID event copy across all sensors), public IP (HTTPS request).
 
 `SystemStats` exposes three independent **refcount** APIs instead of plain on/off setters:
 
@@ -109,10 +109,10 @@ Additional cadences inside the detail tier:
 - Processes: every 2 ticks when detail sampling is on.
 - Volume stats: cached for 30 s; SMART per disk cached for 5 min.
 - Temperature: every 5 ticks (~5 s) — `lastTemperatureSampleTick`. CPU temp is pushed into a 60-sample ring every tick (repeats last sample) so the sparkline is smooth. Sampling is also kept alive outside the detail tier when the user has the temperature metric selected in the menu bar (`StatusBarController` calls `setTemperatureAlwaysOn(true)` on prefs change), so a visible status item stays current even with the popover and main window closed.
-- GPU + Fans: every 5 ticks (~5 s) — `lastGPUSampleTick` / `lastFansSampleTick`. Both fail-closed (`hasReadings = false`) on hardware that doesn't expose the sensors, and the sidebar entry hides itself.
+- GPU + Fans + Wi-Fi: every 5 ticks (~5 s) — `lastGPUSampleTick` / `lastFansSampleTick` / `lastWiFiSampleTick`. GPU and fans fail-closed (`hasReadings = false`) on hardware that doesn't expose the sensors, and the sidebar entry hides itself. Fan reads go through `SMCClient`, which caches per-key `keyInfo` (size/type are static), halving the SMC syscalls per read.
 - Public IP: kicked from the actor as a detached `Task` when the cache is older than 10 min; `applyPublicIP(_:)` writes back through actor isolation.
 
-Long-window history: each "rate" metric (CPU, memory %, network in/out, disk read/write, temperature) is fed into a `MetricRings` bundle that keeps three rings — 60 samples @ 1 Hz (`minute`), 360 samples @ 10 s (`hour`), and 1440 samples @ 1 min (`day`) — using rolling-average downsampling. Panes use a `HistoryRangePicker` to switch the rendered series.
+Long-window history: each "rate" metric (CPU, memory %, network in/out, disk read/write, temperature) is fed into a `MetricRings` bundle that keeps three rings — 60 samples @ 1 Hz (`minute`), 360 samples @ 10 s (`hour`), and 1440 samples @ 1 min (`day`) — using rolling-average downsampling. The hour/day linearized snapshots are cached and only rebuilt when their ring advances (every 10 / 60 ticks), so the per-tick history build only allocates the minute series. Because the cached arrays share storage across snapshots, the `Equatable` sparks (`AreaSpark` / `DualAreaSpark` / `CenteredSpark` + `.equatable()` at call sites) skip Swift Charts re-rendering on ticks where the series didn't change. Panes use a `HistoryRangePicker` to switch the rendered series.
 
 When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(forceDetailRefresh: true)` so the dropdown shows fresh numbers immediately instead of waiting up to 30 s for the next battery / temperature / volume-stats refresh.
 
