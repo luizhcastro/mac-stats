@@ -82,7 +82,7 @@ struct StatRow: View {
     }
 }
 
-struct AreaSpark: View {
+struct AreaSpark: View, Equatable {
     let values: [Double]
     let max: Double
     let color: Color
@@ -124,7 +124,7 @@ struct AreaSpark: View {
     }
 }
 
-struct DualAreaSpark: View {
+struct DualAreaSpark: View, Equatable {
     let inValues: [Double]
     let outValues: [Double]
     let max: Double
@@ -185,7 +185,7 @@ struct HistoryRangePicker: View {
     }
 }
 
-struct CenteredSpark: View {
+struct CenteredSpark: View, Equatable {
     let values: [Double]
     let color: Color
     let height: CGFloat
