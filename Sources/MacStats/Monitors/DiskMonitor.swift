@@ -211,28 +211,67 @@ final class DiskMonitor {
     }
 
     private let statisticsKey = "Statistics" as CFString
+    private let bytesReadKey = "Bytes (Read)" as CFString
+    private let bytesWrittenKey = "Bytes (Write)" as CFString
+    private var ioServices: [io_service_t] = []
+    private var lastIOServiceRefresh: Date?
+    // Drivers are cached 30 s to avoid a per-tick IOKit enumeration; a newly
+    // attached disk starts counting at the next refresh, a detached one forces it.
+    private let ioServiceRefreshInterval: TimeInterval = 30
+
+    deinit {
+        for s in ioServices { IOObjectRelease(s) }
+    }
 
     private func readIOStats() -> (UInt64, UInt64) {
-        var iterator: io_iterator_t = 0
-        let matching = IOServiceMatching("IOBlockStorageDriver")
-        guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
-            return (0, 0)
-        }
-        defer { IOObjectRelease(iterator) }
+        let now = Date()
+        let stale = lastIOServiceRefresh.map { now.timeIntervalSince($0) >= ioServiceRefreshInterval } ?? true
+        if stale { refreshIOServices(now: now) }
 
         var totalRead: UInt64 = 0
         var totalWrite: UInt64 = 0
-        var service = IOIteratorNext(iterator)
-        while service != 0 {
-            defer {
-                IOObjectRelease(service)
-                service = IOIteratorNext(iterator)
+        var readFailed = false
+        for service in ioServices {
+            guard let prop = IORegistryEntryCreateCFProperty(service, statisticsKey, kCFAllocatorDefault, 0) else {
+                readFailed = true
+                continue
             }
-            guard let prop = IORegistryEntryCreateCFProperty(service, statisticsKey, kCFAllocatorDefault, 0),
-                  let stats = prop.takeRetainedValue() as? [String: Any] else { continue }
-            if let r = stats["Bytes (Read)"] as? UInt64 { totalRead &+= r }
-            if let w = stats["Bytes (Write)"] as? UInt64 { totalWrite &+= w }
+            let stats = prop.takeRetainedValue()
+            guard CFGetTypeID(stats) == CFDictionaryGetTypeID() else { continue }
+            let dict = unsafeBitCast(stats, to: CFDictionary.self)
+            totalRead &+= Self.uint64Value(dict, bytesReadKey)
+            totalWrite &+= Self.uint64Value(dict, bytesWrittenKey)
+        }
+        if readFailed {
+            refreshIOServices(now: now)
         }
         return (totalRead, totalWrite)
+    }
+
+    private func refreshIOServices(now: Date) {
+        for s in ioServices { IOObjectRelease(s) }
+        ioServices.removeAll(keepingCapacity: true)
+        lastIOServiceRefresh = now
+
+        var iterator: io_iterator_t = 0
+        let matching = IOServiceMatching("IOBlockStorageDriver")
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
+            return
+        }
+        defer { IOObjectRelease(iterator) }
+        var service = IOIteratorNext(iterator)
+        while service != 0 {
+            ioServices.append(service)
+            service = IOIteratorNext(iterator)
+        }
+    }
+
+    private static func uint64Value(_ dict: CFDictionary, _ key: CFString) -> UInt64 {
+        guard let raw = CFDictionaryGetValue(dict, Unmanaged.passUnretained(key).toOpaque()) else { return 0 }
+        let value = Unmanaged<AnyObject>.fromOpaque(raw).takeUnretainedValue()
+        guard CFGetTypeID(value) == CFNumberGetTypeID() else { return 0 }
+        var out: Int64 = 0
+        CFNumberGetValue(unsafeBitCast(value, to: CFNumber.self), .sInt64Type, &out)
+        return out > 0 ? UInt64(out) : 0
     }
 }
