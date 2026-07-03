@@ -38,7 +38,32 @@ final class NetworkMonitor {
 
     func sample(includeInterfaceDetail: Bool = false) -> Sample {
         let now = Date()
-        let snapshot = readCounters(at: now, includeAddresses: includeInterfaceDetail)
+
+        if !includeInterfaceDetail {
+            let (aggIn, aggOut) = readAggregates()
+            var inRate: Double = 0
+            var outRate: Double = 0
+            if let last = lastTimestamp {
+                let dt = now.timeIntervalSince(last)
+                if dt > 0 {
+                    inRate = SamplingMath.rate(current: aggIn, previous: lastIn, dt: dt)
+                    outRate = SamplingMath.rate(current: aggOut, previous: lastOut, dt: dt)
+                }
+            }
+            lastIn = aggIn
+            lastOut = aggOut
+            lastTimestamp = now
+            if !lastPerIface.isEmpty { lastPerIface = [:] }
+            return Sample(
+                bytesInPerSec: inRate,
+                bytesOutPerSec: outRate,
+                totalIn: aggIn,
+                totalOut: aggOut,
+                interfaces: []
+            )
+        }
+
+        let snapshot = readDetailCounters()
 
         let aggIn = snapshot.aggregateIn
         let aggOut = snapshot.aggregateOut
@@ -54,7 +79,7 @@ final class NetworkMonitor {
         }
 
         var interfaces: [InterfaceStats] = []
-        if includeInterfaceDetail {
+        do {
             interfaces.reserveCapacity(snapshot.ifaces.count)
             var nextPerIface: [String: PerIface] = [:]
             nextPerIface.reserveCapacity(snapshot.ifaces.count)
@@ -92,8 +117,6 @@ final class NetworkMonitor {
                 return lhs.name < rhs.name
             }
             lastPerIface = nextPerIface
-        } else {
-            lastPerIface = [:]
         }
 
         defer {
@@ -127,7 +150,30 @@ final class NetworkMonitor {
         var aggregateOut: UInt64
     }
 
-    private func readCounters(at now: Date, includeAddresses: Bool) -> RawSnapshot {
+    private func readAggregates() -> (UInt64, UInt64) {
+        var ifaddrPtr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddrPtr) == 0, let first = ifaddrPtr else { return (0, 0) }
+        defer { freeifaddrs(ifaddrPtr) }
+
+        var aggIn: UInt64 = 0
+        var aggOut: UInt64 = 0
+        var ptr: UnsafeMutablePointer<ifaddrs>? = first
+        while let cur = ptr {
+            defer { ptr = cur.pointee.ifa_next }
+            guard let sa = cur.pointee.ifa_addr,
+                  Int32(sa.pointee.sa_family) == AF_LINK,
+                  let data = cur.pointee.ifa_data,
+                  let namePtr = cur.pointee.ifa_name else { continue }
+            let isLoopback = namePtr[0] == 0x6c && namePtr[1] == 0x6f
+            if isLoopback { continue }
+            let nd = data.assumingMemoryBound(to: if_data.self).pointee
+            aggIn &+= UInt64(nd.ifi_ibytes)
+            aggOut &+= UInt64(nd.ifi_obytes)
+        }
+        return (aggIn, aggOut)
+    }
+
+    private func readDetailCounters() -> RawSnapshot {
         var ifaddrPtr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddrPtr) == 0, let first = ifaddrPtr else {
             return RawSnapshot(ifaces: [], aggregateIn: 0, aggregateOut: 0)
@@ -171,11 +217,9 @@ final class NetworkMonitor {
                     }
                 }
             case AF_INET:
-                if includeAddresses {
-                    entry.ipv4 = Self.formatAddr(sa, family: AF_INET)
-                }
+                entry.ipv4 = Self.formatAddr(sa, family: AF_INET)
             case AF_INET6:
-                if includeAddresses, entry.ipv6 == nil,
+                if entry.ipv6 == nil,
                    let s = Self.formatAddr(sa, family: AF_INET6), !s.hasPrefix("fe80") {
                     entry.ipv6 = s
                 }
