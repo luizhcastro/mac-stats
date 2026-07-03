@@ -36,6 +36,7 @@ final class MemoryMonitor {
         return size
     }()
 
+    private let host = mach_host_self()
     private var lastSwap: (ins: UInt64, outs: UInt64, at: Date)?
 
     func sample() -> Sample {
@@ -43,7 +44,7 @@ final class MemoryMonitor {
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
         let result = withUnsafeMutablePointer(to: &stats) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
             }
         }
         guard result == KERN_SUCCESS else {

@@ -34,6 +34,7 @@ final class CPUMonitor {
         )
     }
 
+    private let host = mach_host_self()
     private var previousLoad: host_cpu_load_info?
     private var previousCoreTicks: [(user: UInt32, sys: UInt32, idle: UInt32, nice: UInt32)] = []
     private let coreClusters: [CoreCluster]
@@ -100,7 +101,7 @@ final class CPUMonitor {
         var load = host_cpu_load_info()
         let result = withUnsafeMutablePointer(to: &load) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(size)) {
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &size)
+                host_statistics(host, HOST_CPU_LOAD_INFO, $0, &size)
             }
         }
         guard result == KERN_SUCCESS else { return (0, 0, 0, 0) }
@@ -126,7 +127,7 @@ final class CPUMonitor {
         var infoCount: mach_msg_type_number_t = 0
         var info: processor_info_array_t? = nil
         let kr = host_processor_info(
-            mach_host_self(),
+            host,
             PROCESSOR_CPU_LOAD_INFO,
             &processorCount,
             &info,
