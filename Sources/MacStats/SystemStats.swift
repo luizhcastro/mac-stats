@@ -156,7 +156,7 @@ final class SystemStats: ObservableObject {
         samplingTask = Task { [weak self] in
             await self?.refresh()
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(for: .seconds(1), tolerance: .milliseconds(100))
                 guard !Task.isCancelled else { break }
                 await self?.refresh()
             }
@@ -262,6 +262,8 @@ private struct MetricRings {
     var hourCount: Int = 0
     var daySum: Double = 0
     var dayCount: Int = 0
+    var hourSnapshotCache: [Double]?
+    var daySnapshotCache: [Double]?
 
     init() {
         minute = [Double](repeating: 0, count: Self.minuteCapacity)
@@ -280,6 +282,7 @@ private struct MetricRings {
             hourHead = (hourHead + 1) % Self.hourCapacity
             hourSum = 0
             hourCount = 0
+            hourSnapshotCache = nil
         }
 
         daySum += v
@@ -289,14 +292,17 @@ private struct MetricRings {
             dayHead = (dayHead + 1) % Self.dayCapacity
             daySum = 0
             dayCount = 0
+            daySnapshotCache = nil
         }
     }
 
-    func snapshot() -> MetricSeries {
-        MetricSeries(
+    mutating func snapshot() -> MetricSeries {
+        if hourSnapshotCache == nil { hourSnapshotCache = linearized(hour, head: hourHead) }
+        if daySnapshotCache == nil { daySnapshotCache = linearized(day, head: dayHead) }
+        return MetricSeries(
             minute: linearized(minute, head: minuteHead),
-            hour: linearized(hour, head: hourHead),
-            day: linearized(day, head: dayHead)
+            hour: hourSnapshotCache!,
+            day: daySnapshotCache!
         )
     }
 
@@ -314,6 +320,7 @@ private actor StatsSampler {
     private static let temperatureRefreshIntervalTicks = 5
     private static let gpuRefreshIntervalTicks = 5
     private static let fanRefreshIntervalTicks = 5
+    private static let wifiRefreshIntervalTicks = 5
     private static let historyCapacity = 60
 
     private let cpuMonitor = CPUMonitor()
@@ -355,6 +362,7 @@ private actor StatsSampler {
     private var lastGPUSampleTick: Int?
     private var lastFans = FanMonitor.Sample.empty
     private var lastFansSampleTick: Int?
+    private var lastWiFiSampleTick: Int?
     private var lastProcessLeaders = ProcessLeaders.empty
     private var lastProcessList: [ProcessMonitor.ProcStat] = []
     private var processGeneration: UInt64 = 0
@@ -402,11 +410,9 @@ private actor StatsSampler {
     }
 
     func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {
-        let cpu = cpuMonitor.sample()
+        let cpu = cpuMonitor.sample(includeCores: detailSamplingEnabled)
         let memory = memoryMonitor.sample()
         let network = networkMonitor.sample(includeInterfaceDetail: detailSamplingEnabled)
-        let wifi = detailSamplingEnabled ? wifiMonitor.sample() : lastWiFi
-        if detailSamplingEnabled { lastWiFi = wifi }
         let disk = diskMonitor.sample(
             includeVolumeStats: detailSamplingEnabled,
             forceVolumeStatsRefresh: forceDetailRefresh
@@ -445,6 +451,11 @@ private actor StatsSampler {
         if (detailSamplingEnabled || temperatureAlwaysOn) && shouldRefreshTemperature(force: forceDetailRefresh) {
             lastTemperature = temperatureMonitor.sample()
             lastTemperatureSampleTick = tickCount
+        }
+
+        if detailSamplingEnabled && shouldRefreshWiFi(force: forceDetailRefresh) {
+            lastWiFi = wifiMonitor.sample()
+            lastWiFiSampleTick = tickCount
         }
 
         if detailSamplingEnabled && shouldRefreshGPU(force: forceDetailRefresh) {
@@ -495,7 +506,7 @@ private actor StatsSampler {
             cpu: cpu,
             memory: memory,
             network: network,
-            wifi: wifi,
+            wifi: lastWiFi,
             publicIP: publicIP,
             battery: lastBattery,
             disk: disk,
@@ -572,6 +583,12 @@ private actor StatsSampler {
         if force { return true }
         guard let lastFansSampleTick else { return true }
         return tickCount - lastFansSampleTick >= Self.fanRefreshIntervalTicks
+    }
+
+    private func shouldRefreshWiFi(force: Bool) -> Bool {
+        if force { return true }
+        guard let lastWiFiSampleTick else { return true }
+        return tickCount - lastWiFiSampleTick >= Self.wifiRefreshIntervalTicks
     }
 
     private func shouldRefreshProcesses(force: Bool) -> Bool {

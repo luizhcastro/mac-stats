@@ -20,6 +20,7 @@ struct CPUPane: View {
                         Spacer()
                     }
                     AreaSpark(values: stats.history.cpu.values(for: range), max: 100, color: .blue, height: 160)
+                        .equatable()
                 }
                 if !stats.cpu.cores.isEmpty {
                     MetricCard(title: "Per-core Usage", icon: "rectangle.split.3x1") {
@@ -93,6 +94,7 @@ struct MemoryPane: View {
                         Spacer()
                     }
                     AreaSpark(values: stats.history.memoryPercent.values(for: range), max: 100, color: .green, height: 160)
+                        .equatable()
                 }
                 HStack(spacing: 16) {
                     MetricCard(title: "Active", icon: "bolt") {
@@ -222,6 +224,7 @@ struct DiskPane: View {
                         outColor: .pink,
                         height: 160
                     )
+                    .equatable()
                 }
                 if !stats.disk.volumes.isEmpty {
                     MetricCard(title: "Volumes (\(stats.disk.volumes.count))", icon: "externaldrive") {
@@ -307,6 +310,7 @@ struct NetworkPane: View {
                         ),
                         height: 160
                     )
+                    .equatable()
                 }
                 if stats.wifi.isEnabled {
                     MetricCard(title: "Wi-Fi", icon: "wifi") {
@@ -376,6 +380,7 @@ struct BatteryPane: View {
                             color: stats.battery.isCharging ? .green : .blue,
                             height: 120
                         )
+                        .equatable()
                     }
                     MetricCard(title: "Power History (last 30 min)", icon: "bolt") {
                         CenteredSpark(
@@ -383,6 +388,7 @@ struct BatteryPane: View {
                             color: .orange,
                             height: 100
                         )
+                        .equatable()
                         Text(powerHistoryCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -639,6 +645,7 @@ struct TemperaturePane: View {
                         color: .orange,
                         height: 160
                     )
+                    .equatable()
                 }
                 HStack(spacing: 16) {
                     MetricCard(title: "GPU", icon: "display") {

@@ -139,6 +139,7 @@ final class SMCClient {
 
     private(set) var isOpen = false
     private var connection: io_connect_t = 0
+    private var keyInfoCache: [UInt32: SMCKeyData_keyInfo_t] = [:]
 
     init() {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
@@ -181,12 +182,19 @@ final class SMCClient {
         guard isOpen, keyString.count == 4 else { return nil }
         let key = Self.encode(keyString)
 
-        var info = SMCKeyData_t()
-        info.key = key
-        info.data8 = Self.kSMCGetKeyInfo
-        guard call(input: &info) else { return nil }
-        let dataSize = info.keyInfo.dataSize
-        let dataType = info.keyInfo.dataType
+        let keyInfo: SMCKeyData_keyInfo_t
+        if let cached = keyInfoCache[key] {
+            keyInfo = cached
+        } else {
+            var info = SMCKeyData_t()
+            info.key = key
+            info.data8 = Self.kSMCGetKeyInfo
+            guard call(input: &info) else { return nil }
+            keyInfo = info.keyInfo
+            keyInfoCache[key] = keyInfo
+        }
+        let dataSize = keyInfo.dataSize
+        let dataType = keyInfo.dataType
         guard dataSize > 0, dataSize <= 32 else { return nil }
 
         var read = SMCKeyData_t()
