@@ -314,6 +314,7 @@ private actor StatsSampler {
     private static let temperatureRefreshIntervalTicks = 5
     private static let gpuRefreshIntervalTicks = 5
     private static let fanRefreshIntervalTicks = 5
+    private static let wifiRefreshIntervalTicks = 5
     private static let historyCapacity = 60
 
     private let cpuMonitor = CPUMonitor()
@@ -355,6 +356,7 @@ private actor StatsSampler {
     private var lastGPUSampleTick: Int?
     private var lastFans = FanMonitor.Sample.empty
     private var lastFansSampleTick: Int?
+    private var lastWiFiSampleTick: Int?
     private var lastProcessLeaders = ProcessLeaders.empty
     private var lastProcessList: [ProcessMonitor.ProcStat] = []
     private var processGeneration: UInt64 = 0
@@ -405,8 +407,6 @@ private actor StatsSampler {
         let cpu = cpuMonitor.sample(includeCores: detailSamplingEnabled)
         let memory = memoryMonitor.sample()
         let network = networkMonitor.sample(includeInterfaceDetail: detailSamplingEnabled)
-        let wifi = detailSamplingEnabled ? wifiMonitor.sample() : lastWiFi
-        if detailSamplingEnabled { lastWiFi = wifi }
         let disk = diskMonitor.sample(
             includeVolumeStats: detailSamplingEnabled,
             forceVolumeStatsRefresh: forceDetailRefresh
@@ -445,6 +445,11 @@ private actor StatsSampler {
         if (detailSamplingEnabled || temperatureAlwaysOn) && shouldRefreshTemperature(force: forceDetailRefresh) {
             lastTemperature = temperatureMonitor.sample()
             lastTemperatureSampleTick = tickCount
+        }
+
+        if detailSamplingEnabled && shouldRefreshWiFi(force: forceDetailRefresh) {
+            lastWiFi = wifiMonitor.sample()
+            lastWiFiSampleTick = tickCount
         }
 
         if detailSamplingEnabled && shouldRefreshGPU(force: forceDetailRefresh) {
@@ -495,7 +500,7 @@ private actor StatsSampler {
             cpu: cpu,
             memory: memory,
             network: network,
-            wifi: wifi,
+            wifi: lastWiFi,
             publicIP: publicIP,
             battery: lastBattery,
             disk: disk,
@@ -572,6 +577,12 @@ private actor StatsSampler {
         if force { return true }
         guard let lastFansSampleTick else { return true }
         return tickCount - lastFansSampleTick >= Self.fanRefreshIntervalTicks
+    }
+
+    private func shouldRefreshWiFi(force: Bool) -> Bool {
+        if force { return true }
+        guard let lastWiFiSampleTick else { return true }
+        return tickCount - lastWiFiSampleTick >= Self.wifiRefreshIntervalTicks
     }
 
     private func shouldRefreshProcesses(force: Bool) -> Bool {
