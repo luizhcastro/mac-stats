@@ -262,6 +262,8 @@ private struct MetricRings {
     var hourCount: Int = 0
     var daySum: Double = 0
     var dayCount: Int = 0
+    var hourSnapshotCache: [Double]?
+    var daySnapshotCache: [Double]?
 
     init() {
         minute = [Double](repeating: 0, count: Self.minuteCapacity)
@@ -280,6 +282,7 @@ private struct MetricRings {
             hourHead = (hourHead + 1) % Self.hourCapacity
             hourSum = 0
             hourCount = 0
+            hourSnapshotCache = nil
         }
 
         daySum += v
@@ -289,14 +292,17 @@ private struct MetricRings {
             dayHead = (dayHead + 1) % Self.dayCapacity
             daySum = 0
             dayCount = 0
+            daySnapshotCache = nil
         }
     }
 
-    func snapshot() -> MetricSeries {
-        MetricSeries(
+    mutating func snapshot() -> MetricSeries {
+        if hourSnapshotCache == nil { hourSnapshotCache = linearized(hour, head: hourHead) }
+        if daySnapshotCache == nil { daySnapshotCache = linearized(day, head: dayHead) }
+        return MetricSeries(
             minute: linearized(minute, head: minuteHead),
-            hour: linearized(hour, head: hourHead),
-            day: linearized(day, head: dayHead)
+            hour: hourSnapshotCache!,
+            day: daySnapshotCache!
         )
     }
 
