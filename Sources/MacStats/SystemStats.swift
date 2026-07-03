@@ -156,7 +156,7 @@ final class SystemStats: ObservableObject {
         samplingTask = Task { [weak self] in
             await self?.refresh()
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(for: .seconds(1), tolerance: .milliseconds(100))
                 guard !Task.isCancelled else { break }
                 await self?.refresh()
             }
