@@ -402,7 +402,7 @@ private actor StatsSampler {
     }
 
     func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {
-        let cpu = cpuMonitor.sample()
+        let cpu = cpuMonitor.sample(includeCores: detailSamplingEnabled)
         let memory = memoryMonitor.sample()
         let network = networkMonitor.sample(includeInterfaceDetail: detailSamplingEnabled)
         let wifi = detailSamplingEnabled ? wifiMonitor.sample() : lastWiFi

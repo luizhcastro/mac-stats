@@ -75,9 +75,9 @@ final class CPUMonitor {
         }
     }
 
-    func sample() -> Sample {
+    func sample(includeCores: Bool = true) -> Sample {
         let aggregate = sampleAggregate()
-        let cores = sampleCores()
+        let cores = includeCores ? sampleCores() : []
 
         var loads = [Double](repeating: 0, count: 3)
         let n = getloadavg(&loads, 3)
