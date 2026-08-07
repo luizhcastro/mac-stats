@@ -61,5 +61,13 @@ final class MainWindowController: NSObject, NSWindowDelegate {
             detailRetained = false
         }
         NSApp.setActivationPolicy(.accessory)
+        // The window is retained (isReleasedWhenClosed = false), so its SwiftUI
+        // hierarchy survives close and pane onDisappear never fires, leaking
+        // nettop/process sampling retains. Tear down after close completes.
+        let closing = window
+        window = nil
+        DispatchQueue.main.async {
+            closing?.contentViewController = nil
+        }
     }
 }
