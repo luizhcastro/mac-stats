@@ -6,8 +6,12 @@ struct SingleMetricLabel: View {
     let metric: BarMetric
 
     var body: some View {
-        SingleMetricLabelContent(text: text, icon: metric.icon, width: width)
-            .equatable()
+        if metric == .appIcon {
+            AppIconLabel()
+        } else {
+            SingleMetricLabelContent(text: text, icon: metric.icon, width: width)
+                .equatable()
+        }
     }
 
     private var text: String {
@@ -31,6 +35,8 @@ struct SingleMetricLabel: View {
             return Self.compactShort(stats.disk.readPerSec + stats.disk.writePerSec)
         case .network:
             return Self.compactShort(stats.network.bytesInPerSec + stats.network.bytesOutPerSec)
+        case .appIcon:
+            return ""
         }
     }
 
@@ -56,7 +62,24 @@ struct SingleMetricLabel: View {
         case .ram: return 32
         case .disk: return 36
         case .network: return 36
+        case .appIcon: return 18
         }
+    }
+}
+
+private struct AppIconLabel: View {
+    private static let icon = NSImage(named: "AppIcon")
+
+    var body: some View {
+        Group {
+            if let icon = Self.icon {
+                Image(nsImage: icon).resizable()
+            } else {
+                Image(systemName: "speedometer").resizable()
+            }
+        }
+        .frame(width: 17, height: 17)
+        .padding(.horizontal, 2)
     }
 }
 

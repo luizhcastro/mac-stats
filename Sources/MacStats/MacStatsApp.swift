@@ -18,13 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var windowController: MainWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
         Self.killOrphanNettops()
         let stats = SystemStats()
         let prefs = DisplayPreferences()
         self.stats = stats
         self.prefs = prefs
-        let windowController = MainWindowController(stats: stats)
+        prefs.applyActivationPolicy()
+        let windowController = MainWindowController(stats: stats, prefs: prefs)
         self.windowController = windowController
         self.controller = StatusBarController(
             stats: stats,

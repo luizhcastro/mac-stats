@@ -20,10 +20,11 @@ Activity Monitor is heavy and buried in `/Applications/Utilities`; iStat Menus i
 
 ## What it does
 
-- **Menu bar** — pick any of CPU %, temperature, RAM, disk I/O and network rate. Each one is its own status item, so macOS hides them one by one when the bar gets crowded.
+- **Menu bar** — pick any of CPU %, temperature, RAM, disk I/O and network rate. Each one is its own status item, so macOS hides them one by one when the bar gets crowded. Prefer a clean bar? Turn on the plain app icon and drop every metric.
 - **Dropdown** — live readouts per domain plus the top processes by CPU / RAM / Disk / Network / Energy. Clicking an icon opens the list already on that metric's tab.
 - **Main window** — Overview, CPU, GPU, Memory, Disk, Network, Battery, Temperature, Fans and a filterable process table, each chart with a `1m / 1h / 24h` switcher.
 - **Cheap when idle** — the expensive probes (process list, battery, volume capacity, temperature, GPU, fans, Wi-Fi, `nettop`) only run while some view needs them. Idle sits around 76 MB and ~0.5 % CPU.
+- **Settings** — last tab in the main window sidebar: what shows in the menu bar, and whether MacStats appears in the Dock (off by default).
 - **Native and offline** — Swift 6 + SwiftUI + AppKit, no dependencies, no accounts, no telemetry. The only outbound call is the public-IP lookup in the Wi-Fi pane.
 
 ## Install

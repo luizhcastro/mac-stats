@@ -4,11 +4,13 @@ import SwiftUI
 @MainActor
 final class MainWindowController: NSObject, NSWindowDelegate {
     private let stats: SystemStats
+    private let prefs: DisplayPreferences
     private var window: NSWindow?
     private var detailRetained = false
 
-    init(stats: SystemStats) {
+    init(stats: SystemStats, prefs: DisplayPreferences) {
         self.stats = stats
+        self.prefs = prefs
     }
 
     func show() {
@@ -27,13 +29,13 @@ final class MainWindowController: NSObject, NSWindowDelegate {
             stats.retainFullProcessList()
             detailRetained = true
         }
-        NSApp.setActivationPolicy(.regular)
+        prefs.applyActivationPolicy()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
 
     private func makeWindow() -> NSWindow {
-        let content = MainWindowView(stats: stats)
+        let content = MainWindowView(stats: stats, prefs: prefs)
             .frame(minWidth: 760, minHeight: 480)
         let host = NSHostingController(rootView: content)
 
@@ -60,7 +62,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
             stats.releaseFullProcessList()
             detailRetained = false
         }
-        NSApp.setActivationPolicy(.accessory)
+        prefs.applyActivationPolicy()
         // The window is retained (isReleasedWhenClosed = false), so its SwiftUI
         // hierarchy survives close and pane onDisappear never fires, leaking
         // nettop/process sampling retains. Tear down after close completes.

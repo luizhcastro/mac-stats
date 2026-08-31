@@ -22,7 +22,7 @@ struct TopProcessesView: View {
             case .ram: self = .memory
             case .disk: self = .disk
             case .network: self = .network
-            case .cpu, .temperature: self = .cpu
+            case .cpu, .temperature, .appIcon: self = .cpu
             }
         }
     }

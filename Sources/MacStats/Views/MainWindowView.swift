@@ -12,6 +12,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
     case temperature
     case fans
     case processes
+    case settings
 
     var id: String { rawValue }
 
@@ -27,6 +28,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         case .temperature: return "Temperature"
         case .fans:        return "Fans"
         case .processes:   return "Processes"
+        case .settings:    return "Settings"
         }
     }
 
@@ -42,12 +44,14 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         case .temperature: return "thermometer"
         case .fans:        return "fanblades"
         case .processes:   return "list.bullet.rectangle"
+        case .settings:    return "gearshape"
         }
     }
 }
 
 struct MainWindowView: View {
     @ObservedObject var stats: SystemStats
+    @ObservedObject var prefs: DisplayPreferences
     @State private var selection: SidebarSection = .dashboard
 
     var body: some View {
@@ -76,6 +80,9 @@ struct MainWindowView: View {
                 }
                 Section("Activity") {
                     sidebarRow(.processes)
+                }
+                Section {
+                    sidebarRow(.settings)
                 }
             }
             .listStyle(.sidebar)
@@ -107,6 +114,7 @@ struct MainWindowView: View {
         case .temperature: TemperaturePane(stats: stats)
         case .fans:      FansPane(stats: stats)
         case .processes: ProcessesPane(stats: stats)
+        case .settings:  SettingsPane(prefs: prefs)
         }
     }
 }
