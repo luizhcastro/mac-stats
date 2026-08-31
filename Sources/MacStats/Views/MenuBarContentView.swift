@@ -4,6 +4,7 @@ import AppKit
 struct MenuBarContentView: View {
     @ObservedObject var stats: SystemStats
     @ObservedObject var prefs: DisplayPreferences
+    var focus: BarMetric = .cpu
     var openWindow: () -> Void = {}
 
     var body: some View {
@@ -26,7 +27,7 @@ struct MenuBarContentView: View {
                 batterySection
             }
             Divider()
-            TopProcessesView(stats: stats)
+            TopProcessesView(stats: stats, initialTab: .init(focus))
             Divider()
             MenuBarPrefsView(prefs: prefs)
             Divider()

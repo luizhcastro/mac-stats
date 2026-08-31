@@ -120,7 +120,7 @@ When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(for
 
 - **One `NSStatusItem` per metric** (CPU, Temperature, RAM, Disk, Network — five total `BarMetric` cases). Not a single item with a multi-slot label. This lets macOS hide items individually under width pressure instead of collapsing the whole group at once. Each item owns an `NSHostingView<SingleMetricLabel>`.
 - All items are **created once at launch** and toggled via `item.isVisible` when the user checks/unchecks a metric. Recreating items on every toggle turned out to be flaky (items occasionally failed to reappear).
-- Items share **one `NSPopover`** (`behavior = .transient`, no animation). Clicking any item's button opens the popover anchored to that button.
+- Items share **one `NSPopover`** (`behavior = .transient`, no animation). Clicking any item's button opens the popover anchored to that button, and the clicked `BarMetric` is passed down as `MenuBarContentView.focus` so the Top Processes tab starts on that metric (temperature falls back to CPU — there is no temperature tab). Clicking a *different* item while the popover is open re-anchors it (close + reopen on the next runloop hop, with a retain held across the swap so `nettop` isn't killed and respawned).
 - Popover closes on outside click via a **global `NSEvent.addGlobalMonitorForEvents`** monitor for `leftMouseDown`/`rightMouseDown`. `.transient` alone is unreliable, especially when items get hidden.
 - Menu bar label uses `Font.system(size: 9, weight: .bold).monospacedDigit()` with compact suffixes (`99%`, `9.9G`, `1.2M`, `65°`) and fixed-width frames per metric.
 

@@ -2,7 +2,12 @@ import SwiftUI
 
 struct TopProcessesView: View {
     @ObservedObject var stats: SystemStats
-    @State private var tab: Metric = .cpu
+    @State private var tab: Metric
+
+    init(stats: SystemStats, initialTab: Metric = .cpu) {
+        self.stats = stats
+        _tab = State(initialValue: initialTab)
+    }
 
     enum Metric: String, CaseIterable, Identifiable {
         case cpu = "CPU"
@@ -11,6 +16,15 @@ struct TopProcessesView: View {
         case network = "Net"
         case energy = "Energy"
         var id: String { rawValue }
+
+        init(_ metric: BarMetric) {
+            switch metric {
+            case .ram: self = .memory
+            case .disk: self = .disk
+            case .network: self = .network
+            case .cpu, .temperature: self = .cpu
+            }
+        }
     }
 
     struct Row: Identifiable, Equatable {

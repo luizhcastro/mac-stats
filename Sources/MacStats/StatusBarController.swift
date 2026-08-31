@@ -13,6 +13,7 @@ final class StatusBarController {
     private var cancellables: Set<AnyCancellable> = []
     private var pendingSnapshot: [BarMetric]?
     private var outsideClickMonitor: Any?
+    private weak var anchorButton: NSStatusBarButton?
 
     init(stats: SystemStats, prefs: DisplayPreferences, openWindow: @escaping () -> Void) {
         self.stats = stats
@@ -94,23 +95,37 @@ final class StatusBarController {
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        if popover.isShown {
-            closePopover()
+        let metric = statusItems.first { $0.value.button === sender }?.key ?? .cpu
+        guard popover.isShown else {
+            openPopover(anchoredTo: sender, focus: metric)
             return
         }
-        openPopover(anchoredTo: sender)
+        let reanchor = anchorButton !== sender
+        if reanchor {
+            stats.retainDetailSampling()
+            stats.retainNetworkProcessSampling()
+        }
+        closePopover()
+        guard reanchor else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.openPopover(anchoredTo: sender, focus: metric)
+            self.stats.releaseDetailSampling()
+            self.stats.releaseNetworkProcessSampling()
+        }
     }
 
-    private func openPopover(anchoredTo button: NSStatusBarButton) {
+    private func openPopover(anchoredTo button: NSStatusBarButton, focus: BarMetric) {
         stats.retainDetailSampling()
         stats.retainNetworkProcessSampling()
         popover.delegate = popoverDelegate
         popover.contentViewController = NSHostingController(
-            rootView: MenuBarContentView(stats: stats, prefs: prefs, openWindow: { [weak self] in
+            rootView: MenuBarContentView(stats: stats, prefs: prefs, focus: focus, openWindow: { [weak self] in
                 self?.closePopover()
                 self?.openWindow()
             })
         )
+        anchorButton = button
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.becomeKey()
         installOutsideClickMonitor()
