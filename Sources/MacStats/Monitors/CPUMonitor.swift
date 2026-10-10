@@ -108,10 +108,10 @@ final class CPUMonitor {
         defer { previousLoad = load }
         guard let prev = previousLoad else { return (0, 0, 0, 0) }
 
-        let user = Double(load.cpu_ticks.0 - prev.cpu_ticks.0)
-        let sys = Double(load.cpu_ticks.1 - prev.cpu_ticks.1)
-        let idle = Double(load.cpu_ticks.2 - prev.cpu_ticks.2)
-        let nice = Double(load.cpu_ticks.3 - prev.cpu_ticks.3)
+        let user = Double(load.cpu_ticks.0 &- prev.cpu_ticks.0)
+        let sys = Double(load.cpu_ticks.1 &- prev.cpu_ticks.1)
+        let idle = Double(load.cpu_ticks.2 &- prev.cpu_ticks.2)
+        let nice = Double(load.cpu_ticks.3 &- prev.cpu_ticks.3)
         let total = user + sys + idle + nice
         guard total > 0 else { return (0, 0, 0, 0) }
         return (
