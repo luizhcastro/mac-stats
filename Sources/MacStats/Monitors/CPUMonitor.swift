@@ -79,11 +79,12 @@ final class CPUMonitor {
         let aggregate = sampleAggregate()
         let cores = includeCores ? sampleCores() : []
 
-        var loads = [Double](repeating: 0, count: 3)
-        let n = getloadavg(&loads, 3)
-        let load = n == 3
-            ? LoadAverage(one: loads[0], five: loads[1], fifteen: loads[2])
-            : LoadAverage.zero
+        // Stack buffer: this runs every tick in the always-on tier.
+        let load = withUnsafeTemporaryAllocation(of: Double.self, capacity: 3) { loads in
+            getloadavg(loads.baseAddress, 3) == 3
+                ? LoadAverage(one: loads[0], five: loads[1], fifteen: loads[2])
+                : LoadAverage.zero
+        }
 
         return Sample(
             usage: aggregate.usage,
