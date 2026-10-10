@@ -48,6 +48,13 @@ final class ProcessMonitor {
     }
 
     private var prior: [ProcessIdentity: Prior] = [:]
+    /// PIDs proc_pidinfo refused (EPERM: root-owned processes, ~40% of all
+    /// PIDs). Skipped until the next reset so they don't cost a failing
+    /// syscall every sample.
+    private var deniedPids: Set<Int32> = []
+    // ponytail: periodic reset covers PID reuse (a denied PID recycled by a
+    // user process shows up within ~1 min); track per-PID start time if not.
+    private static let deniedResetEverySamples: UInt64 = 30
     private var currentTick: UInt64 = 0
     private var lastSampleTime: Date?
     private var staleScratch: [ProcessIdentity] = []
@@ -75,13 +82,19 @@ final class ProcessMonitor {
         defer { lastSampleTime = now }
 
         currentTick &+= 1
+        if currentTick % Self.deniedResetEverySamples == 0 {
+            deniedPids.removeAll(keepingCapacity: true)
+        }
         var results: [ProcStat] = []
         results.reserveCapacity(pidCount)
 
         for idx in 0..<pidCount {
             let pid = pidBuf[idx]
-            guard pid > 0 else { continue }
-            guard let info = taskAllInfo(pid: pid) else { continue }
+            guard pid > 0, !deniedPids.contains(pid) else { continue }
+            guard let info = taskAllInfo(pid: pid) else {
+                if errno == EPERM { deniedPids.insert(pid) }
+                continue
+            }
             let task = info.ptinfo
             let identity = ProcessIdentity(
                 pid: pid,
@@ -106,9 +119,11 @@ final class ProcessMonitor {
             var readRate = 0.0
             var writeRate = 0.0
             var wakeupsRate = 0.0
+            let priorIndex = prior.index(forKey: identity)
             var cachedName: String?
             var cachedNameLower: String?
-            if let p = prior[identity] {
+            if let priorIndex {
+                let p = prior.values[priorIndex]
                 cachedName = p.name
                 cachedNameLower = p.nameLower
                 if dt > 0 {
@@ -126,15 +141,24 @@ final class ProcessMonitor {
 
             let name = cachedName ?? processName(pid: pid, info: info)
             let nameLower = cachedNameLower ?? name.lowercased()
-            prior[identity] = Prior(
-                cpuTicks: cpuTicks,
-                diskRead: diskRead,
-                diskWritten: diskWritten,
-                wakeups: wakeups,
-                tick: currentTick,
-                name: name,
-                nameLower: nameLower
-            )
+            if let priorIndex {
+                // Update counters in place; no rehash, no name String writes.
+                prior.values[priorIndex].cpuTicks = cpuTicks
+                prior.values[priorIndex].diskRead = diskRead
+                prior.values[priorIndex].diskWritten = diskWritten
+                prior.values[priorIndex].wakeups = wakeups
+                prior.values[priorIndex].tick = currentTick
+            } else {
+                prior[identity] = Prior(
+                    cpuTicks: cpuTicks,
+                    diskRead: diskRead,
+                    diskWritten: diskWritten,
+                    wakeups: wakeups,
+                    tick: currentTick,
+                    name: name,
+                    nameLower: nameLower
+                )
+            }
 
             let cpuPctClamped = max(0, cpuPct)
             let wakeupsClamped = trackEnergy ? max(0, wakeupsRate) : 0
