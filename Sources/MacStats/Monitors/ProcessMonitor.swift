@@ -21,7 +21,7 @@ final class ProcessMonitor {
     }
 
     private struct Prior {
-        var cpuTimeNs: UInt64
+        var cpuTicks: UInt64
         var diskRead: UInt64
         var diskWritten: UInt64
         var wakeups: UInt64
@@ -31,6 +31,15 @@ final class ProcessMonitor {
     }
 
     private static let idleWakeupEnergyCost = 0.39
+
+    /// `pti_total_user` / `pti_total_system` are mach absolute-time ticks, not
+    /// nanoseconds. On Apple Silicon the timebase is 125/3, so treating them as
+    /// ns under-reports CPU% by ~42x.
+    private static let nsPerMachTick: Double = {
+        var tb = mach_timebase_info_data_t()
+        mach_timebase_info(&tb)
+        return tb.denom == 0 ? 1 : Double(tb.numer) / Double(tb.denom)
+    }()
 
     private struct ProcessIdentity: Hashable {
         let pid: Int32
@@ -79,7 +88,7 @@ final class ProcessMonitor {
                 startSeconds: info.pbsd.pbi_start_tvsec,
                 startMicroseconds: info.pbsd.pbi_start_tvusec
             )
-            let cpuTimeNs = task.pti_total_user + task.pti_total_system
+            let cpuTicks = task.pti_total_user &+ task.pti_total_system
             let rss = task.pti_resident_size
 
             var diskRead: UInt64 = 0
@@ -103,8 +112,8 @@ final class ProcessMonitor {
                 cachedName = p.name
                 cachedNameLower = p.nameLower
                 if dt > 0 {
-                    if let deltaCpuNs = SamplingMath.delta(current: cpuTimeNs, previous: p.cpuTimeNs) {
-                        let deltaCpu = Double(deltaCpuNs) / 1_000_000_000.0
+                    if let deltaTicks = SamplingMath.delta(current: cpuTicks, previous: p.cpuTicks) {
+                        let deltaCpu = Double(deltaTicks) * Self.nsPerMachTick / 1_000_000_000.0
                         cpuPct = (deltaCpu / dt) * 100 / coreCount
                     }
                     readRate = SamplingMath.rate(current: diskRead, previous: p.diskRead, dt: dt)
@@ -118,7 +127,7 @@ final class ProcessMonitor {
             let name = cachedName ?? processName(pid: pid, info: info)
             let nameLower = cachedNameLower ?? name.lowercased()
             prior[identity] = Prior(
-                cpuTimeNs: cpuTimeNs,
+                cpuTicks: cpuTicks,
                 diskRead: diskRead,
                 diskWritten: diskWritten,
                 wakeups: wakeups,
