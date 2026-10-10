@@ -23,7 +23,9 @@ private func _IOHIDServiceClientCopyEvent(_ service: AnyObject, _ type: Int32, _
 @_silgen_name("IOHIDEventGetFloatValue")
 private func _IOHIDEventGetFloatValue(_ event: AnyObject, _ field: Int32) -> Double
 
-final class TemperatureMonitor {
+// All stored state is immutable after init, so reads can run off the sampler
+// actor on a background queue.
+final class TemperatureMonitor: @unchecked Sendable {
     struct Sample: Sendable {
         var cpuCelsius: Double
         var gpuCelsius: Double
@@ -35,7 +37,7 @@ final class TemperatureMonitor {
         static let empty = Sample(cpuCelsius: -1, gpuCelsius: -1, maxCelsius: 0, sensorCount: 0)
     }
 
-    private enum Category: UInt8 { case other, cpu, gpu }
+    private enum Category: UInt8 { case other, cpu, gpu, ignored }
 
     private let client: AnyObject?
     private let services: [AnyObject]
@@ -74,11 +76,21 @@ final class TemperatureMonitor {
         for i in 0..<count {
             guard let raw = CFArrayGetValueAtIndex(cfArray, i) else { continue }
             let svc = unsafeBitCast(raw, to: AnyObject.self)
-            services.append(svc)
-
             let nameRef = _IOHIDServiceClientCopyProperty(svc, "Product" as CFString)?.takeRetainedValue()
             let name = (nameRef as? String)?.uppercased() ?? ""
-            categories.append(Self.classify(name: name))
+            let category = Self.classify(name: name)
+            if category == .ignored { continue }
+            services.append(svc)
+            categories.append(category)
+        }
+
+        // Each IOHIDServiceClientCopyEvent is a synchronous driver round trip
+        // (~0.3–2 ms; all 47 sensors on an M4 take ~45 ms). When CPU/GPU
+        // sensors are identifiable, read only those.
+        if categories.contains(where: { $0 != .other }) {
+            let keep = categories.indices.filter { categories[$0] != .other }
+            services = keep.map { services[$0] }
+            categories = keep.map { categories[$0] }
         }
 
         self.client = client
@@ -87,8 +99,13 @@ final class TemperatureMonitor {
     }
 
     private static func classify(name: String) -> Category {
+        // "PMU tcal" is a calibration constant (reads a fixed ~51.8 °C on M4)
+        // and would pin maxCelsius.
+        if name.contains("TCAL") { return .ignored }
         if name.contains("GPU") { return .gpu }
-        if name.contains("CPU")
+        // M4 exposes die sensors as "PMU tdieN" / "PMU2 tdieN".
+        if name.contains("TDIE")
+            || name.contains("CPU")
             || name.contains("PACC")
             || name.contains("EACC")
             || name.contains("PMP")
@@ -129,7 +146,7 @@ final class TemperatureMonitor {
             case .gpu:
                 gpuSum += v
                 gpuCount += 1
-            case .other:
+            case .other, .ignored:
                 break
             }
         }
