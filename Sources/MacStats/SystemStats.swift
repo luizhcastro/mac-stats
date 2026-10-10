@@ -340,6 +340,7 @@ private actor StatsSampler {
     private var energyTrackingEnabled = false
     private var fullProcessListEnabled = false
     private var networkProcessSamplingEnabled = false
+    private var nettopRunning = false
     private var temperatureAlwaysOn = false
 
     private var cpuRings = MetricRings()
@@ -383,6 +384,7 @@ private actor StatsSampler {
 
     func setDetailSamplingEnabled(_ enabled: Bool) {
         detailSamplingEnabled = enabled
+        updateNettop()
     }
 
     func setTemperatureAlwaysOn(_ enabled: Bool) {
@@ -390,9 +392,18 @@ private actor StatsSampler {
     }
 
     func setNetworkProcessSamplingEnabled(_ enabled: Bool) {
-        guard networkProcessSamplingEnabled != enabled else { return }
         networkProcessSamplingEnabled = enabled
-        if enabled {
+        updateNettop()
+    }
+
+    /// nettop output is only consumed inside the detail tier, so keep the
+    /// child running only while both a consumer and detail sampling are on
+    /// (e.g. a Network pane in a minimized window doesn't need it).
+    private func updateNettop() {
+        let shouldRun = networkProcessSamplingEnabled && detailSamplingEnabled
+        guard shouldRun != nettopRunning else { return }
+        nettopRunning = shouldRun
+        if shouldRun {
             networkProcessMonitor.start()
         } else {
             networkProcessMonitor.stop()
@@ -482,7 +493,7 @@ private actor StatsSampler {
 
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
             var processes = processMonitor.sample()
-            let netProcesses = networkProcessSamplingEnabled
+            let netProcesses = nettopRunning
                 ? networkProcessMonitor.sample()
                 : []
             if fullProcessListEnabled {
