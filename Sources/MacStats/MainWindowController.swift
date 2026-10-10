@@ -57,7 +57,9 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         detailRetained = retained
         if retained {
             stats.retainDetailSampling()
+            stats.retainWindowDetail()
         } else {
+            stats.releaseWindowDetail()
             stats.releaseDetailSampling()
         }
     }
