@@ -1,40 +1,48 @@
 import SwiftUI
 import AppKit
 
+/// Text shown by one status item. `StatusBarController` writes it only when
+/// the formatted string actually changes, so a tick that leaves "12%" as
+/// "12%" doesn't invalidate the item's SwiftUI view.
+@MainActor
+final class MetricLabelModel: ObservableObject {
+    @Published var text = ""
+}
+
 struct SingleMetricLabel: View {
-    @ObservedObject var stats: SystemStats
+    @ObservedObject var model: MetricLabelModel
     let metric: BarMetric
 
     var body: some View {
         if metric == .appIcon {
             AppIconLabel()
         } else {
-            SingleMetricLabelContent(text: text, icon: metric.icon, width: width)
+            SingleMetricLabelContent(text: model.text, icon: metric.icon, width: width)
                 .equatable()
         }
     }
 
-    private var text: String {
+    static func text(for metric: BarMetric, in snapshot: SystemSnapshot) -> String {
         switch metric {
         case .cpu:
-            let v = Int(stats.cpu.usage.rounded())
+            let v = Int(snapshot.cpu.usage.rounded())
             return String(format: "%d%%", min(max(v, 0), 100))
         case .temperature:
-            let t = stats.temperature.cpuCelsius > 0
-                ? stats.temperature.cpuCelsius
-                : stats.temperature.maxCelsius
+            let t = snapshot.temperature.cpuCelsius > 0
+                ? snapshot.temperature.cpuCelsius
+                : snapshot.temperature.maxCelsius
             if t > 0 { return String(format: "%d°", Int(t.rounded())) }
             return "--°"
         case .ram:
-            let gb = Double(stats.memory.usedBytes) / 1_073_741_824.0
+            let gb = Double(snapshot.memory.usedBytes) / 1_073_741_824.0
             if gb < 10 {
                 return String(format: "%.1fG", gb)
             }
             return String(format: "%dG", Int(gb.rounded()))
         case .disk:
-            return Self.compactShort(stats.disk.readPerSec + stats.disk.writePerSec)
+            return compactShort(snapshot.disk.readPerSec + snapshot.disk.writePerSec)
         case .network:
-            return Self.compactShort(stats.network.bytesInPerSec + stats.network.bytesOutPerSec)
+            return compactShort(snapshot.network.bytesInPerSec + snapshot.network.bytesOutPerSec)
         case .appIcon:
             return ""
         }
