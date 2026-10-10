@@ -358,6 +358,8 @@ private actor StatsSampler {
     private var lastBatterySampleTick: Int?
     private var lastTemperature = TemperatureMonitor.Sample.empty
     private var lastTemperatureSampleTick: Int?
+    private var temperatureInFlight = false
+    private static let temperatureQueue = DispatchQueue(label: "macstats.temperature", qos: .utility)
     private var lastGPU = GPUMonitor.Sample.empty
     private var lastGPUSampleTick: Int?
     private var lastFans = FanMonitor.Sample.empty
@@ -448,9 +450,17 @@ private actor StatsSampler {
             }
         }
 
-        if (detailSamplingEnabled || temperatureAlwaysOn) && shouldRefreshTemperature(force: forceDetailRefresh) {
-            lastTemperature = temperatureMonitor.sample()
+        if (detailSamplingEnabled || temperatureAlwaysOn)
+            && !temperatureInFlight
+            && shouldRefreshTemperature(force: forceDetailRefresh) {
             lastTemperatureSampleTick = tickCount
+            temperatureInFlight = true
+            // IOHID reads block on the driver for several ms; keep them off
+            // the actor so the 1 s tick never waits on them.
+            Self.temperatureQueue.async { [temperatureMonitor, weak self] in
+                let sample = temperatureMonitor.sample()
+                Task { await self?.applyTemperature(sample) }
+            }
         }
 
         if detailSamplingEnabled && shouldRefreshWiFi(force: forceDetailRefresh) {
@@ -519,6 +529,11 @@ private actor StatsSampler {
             allProcesses: lastProcessList,
             processGeneration: processGeneration
         )
+    }
+
+    private func applyTemperature(_ sample: TemperatureMonitor.Sample) {
+        temperatureInFlight = false
+        lastTemperature = sample
     }
 
     private func maybeFetchPublicIP() {
