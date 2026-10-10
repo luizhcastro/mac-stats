@@ -44,6 +44,7 @@ struct DashboardPane: View {
             }
             Spacer(minLength: 0)
             AreaSpark(values: stats.history.cpu.minute, max: 100, color: .blue)
+                .equatable()
         }
     }
 
@@ -62,6 +63,7 @@ struct DashboardPane: View {
             }
             Spacer(minLength: 0)
             AreaSpark(values: stats.history.memoryPercent.minute, max: 100, color: .green)
+                .equatable()
         }
     }
 
@@ -77,6 +79,7 @@ struct DashboardPane: View {
                 outValues: stats.history.networkOut.minute,
                 max: ScaleHelper.niceMax(stats.history.networkIn.minute + stats.history.networkOut.minute, minimum: 64 * 1024)
             )
+            .equatable()
         }
     }
 
@@ -94,6 +97,7 @@ struct DashboardPane: View {
                 inColor: .purple,
                 outColor: .pink
             )
+            .equatable()
         }
     }
 
@@ -132,6 +136,7 @@ struct DashboardPane: View {
                 max: ScaleHelper.niceMax(stats.history.temperature.minute, minimum: 80),
                 color: .orange
             )
+            .equatable()
         }
     }
 
