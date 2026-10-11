@@ -11,8 +11,8 @@ struct MenuBarContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            if let release = updates.available {
-                updateBanner(release)
+            if let version = updates.availableVersion {
+                updateBanner(version)
             }
             Divider()
             cpuSection
@@ -71,12 +71,12 @@ struct MenuBarContentView: View {
         }
     }
 
-    private func updateBanner(_ release: UpdateChecker.Release) -> some View {
+    private func updateBanner(_ version: String) -> some View {
         HStack {
-            Label("MacStats \(release.version) is available", systemImage: "arrow.down.circle.fill")
+            Label("MacStats \(version) is available", systemImage: "arrow.down.circle.fill")
                 .font(.caption)
             Spacer()
-            Button("Download") { NSWorkspace.shared.open(release.html_url) }
+            Button("Update") { updates.checkForUpdates() }
                 .controlSize(.small)
         }
     }

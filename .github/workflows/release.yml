@@ -63,6 +63,14 @@ jobs:
 
       - name: Codesign app
         run: |
+          # Nested Sparkle code must be signed inside-out before the app itself.
+          SIGN=(codesign --force --options runtime --timestamp --sign "Developer ID Application")
+          FW="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+          "${SIGN[@]}" "$FW/Versions/B/XPCServices/Installer.xpc"
+          "${SIGN[@]}" --preserve-metadata=entitlements "$FW/Versions/B/XPCServices/Downloader.xpc"
+          "${SIGN[@]}" "$FW/Versions/B/Autoupdate"
+          "${SIGN[@]}" "$FW/Versions/B/Updater.app"
+          "${SIGN[@]}" "$FW"
           codesign --force --options runtime --timestamp \
             --sign "Developer ID Application" \
             "$APP_PATH"
@@ -135,13 +143,44 @@ jobs:
             --wait
           xcrun stapler staple "$DMG"
 
+      - name: Generate Sparkle appcast
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Must run after stapling: the EdDSA signature covers the final DMG bytes.
+          SPARKLE_VERSION=$(sed -n 's/.*Sparkle", exact: "\(.*\)").*/\1/p' Package.swift)
+          curl -sSL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" | tar xJ -C "$RUNNER_TEMP" bin/sign_update
+          DMG="MacStats-${VERSION}.dmg"
+          SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | "$RUNNER_TEMP/bin/sign_update" --ed-key-file - "$DMG")
+          cat > appcast.xml <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>MacStats</title>
+              <item>
+                <title>MacStats ${VERSION}</title>
+                <pubDate>$(date -R)</pubDate>
+                <link>https://github.com/${{ github.repository }}/releases/tag/v${VERSION}</link>
+                <sparkle:version>${VERSION}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+                <enclosure url="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/${DMG}" ${SIGNATURE} type="application/octet-stream"/>
+              </item>
+            </channel>
+          </rss>
+          XML
+          cat appcast.xml
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "MacStats ${{ github.ref_name }}"
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: apps/macos/MacStats-*.dmg
+          files: |
+            apps/macos/MacStats-*.dmg
+            apps/macos/appcast.xml
           draft: false
           prerelease: false
           make_latest: true

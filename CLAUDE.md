@@ -22,7 +22,7 @@ Native macOS menu bar system monitor. Inspired by iStat Menus. Personal use, not
 - SwiftUI + AppKit (`NSStatusItem` for menu bar, SwiftUI for content).
 - Swift Package Manager (no Xcode project). `Package.swift` is the source of truth.
 - macOS 13+ deployment target.
-- No external dependencies.
+- One external dependency: Sparkle (auto-update), pinned `exact:` in `Package.swift`. Don't add others.
 
 ## Build / run
 
@@ -51,7 +51,7 @@ apps/macos/Sources/MacStats/
 ├── MenuBarSnapshot.swift        # frozen copy of selected metrics for the status bar
 ├── Formatters.swift             # byte/rate/percent formatting
 ├── ProcessKill.swift            # confirm-and-kill helper used by leader rows
-├── UpdateChecker.swift          # polls GitHub releases/latest; drives the popover banner + Settings card
+├── UpdateChecker.swift          # Sparkle SPUStandardUpdaterController wrapper; gentle-reminder banner in popover + Settings card
 ├── Analytics.swift              # opt-out Umami pings (heartbeat / popover_open / window_open), max 1 per name per day
 ├── Monitors/                    # stateless-ish samplers, one per hardware domain
 │   ├── CPUMonitor.swift         # aggregate host_statistics + per-core host_processor_info + getloadavg
@@ -152,7 +152,9 @@ Without this, the status item layout would shift during a popover session, causi
 
 ## Updates & analytics
 
-`AppDelegate` runs a 6 h loop: `UpdateChecker.shared.check()` (GitHub `releases/latest`, `tag_name` vs `CFBundleShortVersionString` with `.numeric` compare) then `Analytics.track("heartbeat")`. `StatusBarController.openPopover` tracks `popover_open`, `MainWindowController.show` tracks `window_open`.
+Auto-update uses **Sparkle 2** (`UpdateChecker`, started in `applicationDidFinishLaunching`; "Check for Updates…" in the app menu and Settings). Feed: `https://github.com/luizhcastro/mac-stats/releases/latest/download/appcast.xml`, a single-item appcast that `release.yml` generates and uploads as a release asset; the enclosure is the notarized DMG, signed with `sign_update` using the `SPARKLE_PRIVATE_KEY` secret (EdDSA; public key is `SUPublicEDKey` in `bundle.sh`; private key also lives in the owner's login keychain under account `macstats`). The signature must be computed after stapling. `bundle.sh` copies `Sparkle.framework` into `Contents/Frameworks` (rpath set in `Package.swift`); CI signs its XPC services / Autoupdate / Updater.app inside-out before the app. Scheduled checks found outside immediate focus don't pop a window: `standardUserDriverWillHandleShowingUpdate` sets `availableVersion`, the popover shows a banner, and clicking it calls `checkForUpdates()`. Local testing: Sparkle rejects `file://` feeds (serve via `http://localhost`) and unsealed bundles (ad-hoc `codesign --deep -s -` both old and new app); override the feed with `defaults write dev.luizcastro.macstats SUFeedURL …`.
+
+`AppDelegate` also runs a 6 h loop calling `Analytics.track("heartbeat")`. `StatusBarController.openPopover` tracks `popover_open`, `MainWindowController.show` tracks `window_open`.
 
 `Analytics` posts to Umami `/api/send` with a random per-install UUID as the distinct `id` (so Umami Sessions / Retention follow one install over time) plus `version`, `macOS`, `arch`. Each event name is sent at most once per UTC day (`analytics.lastSent`, written only on HTTP 200). Config comes from `Info.plist` keys `MacStatsUmamiHost` / `MacStatsUmamiWebsiteID`, filled by `bundle.sh` from `UMAMI_HOST` / `UMAMI_WEBSITE_ID` (GitHub repo variables in `release.yml`). Empty = disabled, so local builds never ping. User opt-out: Settings → Privacy (`analytics.enabled`, default on). The User-Agent mimics a Mac browser because Umami drops bot-looking agents.
 
