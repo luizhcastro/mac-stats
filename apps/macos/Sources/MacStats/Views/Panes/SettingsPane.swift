@@ -27,13 +27,12 @@ struct SettingsPane: View {
 
                 MetricCard(title: "Updates", icon: "arrow.down.circle") {
                     Text("Version \(updates.currentVersion ?? "dev")")
-                    if let release = updates.available {
-                        Button("Download MacStats \(release.version)") { NSWorkspace.shared.open(release.html_url) }
-                    } else {
-                        Text("You're on the latest version. MacStats checks GitHub for new releases every few hours.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    Button(updates.availableVersion.map { "Install MacStats \($0)…" } ?? "Check for Updates…") {
+                        updates.checkForUpdates()
                     }
+                    Text("MacStats checks for new releases daily and installs them in place.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 MetricCard(title: "Privacy", icon: "hand.raised") {

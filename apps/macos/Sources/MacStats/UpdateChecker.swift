@@ -1,28 +1,40 @@
 import Foundation
+import Sparkle
 
-/// Polls the latest GitHub release and exposes it when it's newer than the running bundle.
+/// Sparkle updater. Scheduled checks that find an update while the user isn't looking surface as a
+/// banner in the popover (gentle reminder) instead of stealing focus from a menu bar app; clicking
+/// it, or "Check for Updates…", hands off to Sparkle's download / install / relaunch UI.
 @MainActor
-final class UpdateChecker: ObservableObject {
+final class UpdateChecker: NSObject, ObservableObject, @preconcurrency SPUStandardUserDriverDelegate {
     static let shared = UpdateChecker()
 
-    struct Release: Decodable {
-        let tag_name: String
-        let html_url: URL
-        var version: String { tag_name.hasPrefix("v") ? String(tag_name.dropFirst()) : tag_name }
-    }
-
-    @Published private(set) var available: Release?
+    @Published private(set) var availableVersion: String?
 
     let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
 
-    func check() async {
-        guard let currentVersion,
-              let url = URL(string: "https://api.github.com/repos/luizhcastro/mac-stats/releases/latest") else { return }
-        var req = URLRequest(url: url)
-        req.timeoutInterval = 10
-        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        guard let (data, _) = try? await URLSession.shared.data(for: req),
-              let release = try? JSONDecoder().decode(Release.self, from: data) else { return }
-        available = release.version.compare(currentVersion, options: .numeric) == .orderedDescending ? release : nil
+    private lazy var controller = SPUStandardUpdaterController(
+        startingUpdater: false, updaterDelegate: nil, userDriverDelegate: self
+    )
+
+    func start() {
+        controller.startUpdater()
+    }
+
+    func checkForUpdates() {
+        controller.checkForUpdates(nil)
+    }
+
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool) -> Bool {
+        immediateFocus
+    }
+
+    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+        if !handleShowingUpdate { availableVersion = update.displayVersionString }
+    }
+
+    func standardUserDriverWillFinishUpdateSession() {
+        availableVersion = nil
     }
 }

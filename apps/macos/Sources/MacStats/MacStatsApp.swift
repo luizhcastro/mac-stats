@@ -34,9 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         installAppMenu()
+        UpdateChecker.shared.start()
         Task {
             while true {
-                await UpdateChecker.shared.check()
                 Analytics.track("heartbeat")
                 try? await Task.sleep(for: .seconds(6 * 3600))
             }
@@ -62,6 +62,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         task.waitUntilExit()
     }
 
+    @objc func checkForUpdates(_ sender: Any?) {
+        UpdateChecker.shared.checkForUpdates()
+    }
+
     @objc func openMainWindow(_ sender: Any?) {
         windowController?.show()
     }
@@ -73,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu()
         let appName = "MacStats"
         appMenu.addItem(NSMenuItem(title: "About \(appName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""))
+        let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates(_:)), keyEquivalent: "")
+        updateItem.target = self
+        appMenu.addItem(updateItem)
         appMenu.addItem(.separator())
         let openItem = NSMenuItem(title: "Open Window", action: #selector(openMainWindow(_:)), keyEquivalent: "0")
         openItem.target = self

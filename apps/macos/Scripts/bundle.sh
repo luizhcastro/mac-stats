@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-release}"
-VERSION="${VERSION:-0.5.2}"
+VERSION="${VERSION:-0.5.3}"
 swift build -c "$CONFIG"
 
 BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)"
@@ -16,6 +16,8 @@ RES="$CONTENTS/Resources"
 rm -rf "$APP"
 mkdir -p "$MACOS" "$RES"
 cp "$BIN_PATH/MacStats" "$MACOS/MacStats"
+mkdir -p "$CONTENTS/Frameworks"
+ditto "$BIN_PATH/Sparkle.framework" "$CONTENTS/Frameworks/Sparkle.framework"
 
 ICON_SRC="$(cd "$(dirname "$0")/.." && pwd)/Resources/AppIcon.icns"
 if [ -f "$ICON_SRC" ]; then
@@ -38,6 +40,9 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>SUFeedURL</key><string>https://github.com/luizhcastro/mac-stats/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>KVZSH/dU3JR8VN86V5ngsez0o5PHpJyj3bA91CqA6uk=</string>
+    <key>SUEnableAutomaticChecks</key><true/>
     <key>MacStatsUmamiHost</key><string>${UMAMI_HOST:-}</string>
     <key>MacStatsUmamiWebsiteID</key><string>${UMAMI_WEBSITE_ID:-}</string>
     <key>NSLocationUsageDescription</key><string>MacStats reads the current Wi-Fi SSID and signal information so it can show the network you are connected to.</string>
