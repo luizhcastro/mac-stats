@@ -23,7 +23,7 @@ export function MenuBar({ stats, visible, onItemClick, itemRef }: MenuBarProps) 
   ] as const
 
   return (
-    <div className="glass sticky top-0 z-10 flex h-[30px] items-center justify-between rounded-none border-x-0 border-t-0 px-3.5 text-[13px]">
+    <div className="glass sticky top-0 z-30 flex h-[30px] items-center justify-between rounded-none border-x-0 border-t-0 px-3.5 text-[13px]">
       <div className="flex items-center gap-[18px] max-sm:gap-3">
         <AppleLogo />
         <b>Finder</b>
@@ -36,12 +36,12 @@ export function MenuBar({ stats, visible, onItemClick, itemRef }: MenuBarProps) 
 
       <div className="flex items-center gap-1.5 max-sm:gap-0.5">
         {visible.has('appIcon') && (
-          <MenuBarItem ref={itemRef('appIcon')} appIcon label="MacStats" onClick={() => onItemClick('appIcon')} />
+          <MenuBarItem ref={itemRef('appIcon')} appIcon metric="appIcon" label="MacStats" onClick={() => onItemClick('appIcon')} />
         )}
         {items
           .filter((item) => visible.has(item.id))
           .map((item) => (
-            <MenuBarItem key={item.id} ref={itemRef(item.id)} {...item} onClick={() => onItemClick(item.id)} />
+            <MenuBarItem key={item.id} ref={itemRef(item.id)} metric={item.id} {...item} onClick={() => onItemClick(item.id)} />
           ))}
         <Clock />
       </div>

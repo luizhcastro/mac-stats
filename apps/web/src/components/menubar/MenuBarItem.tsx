@@ -3,6 +3,8 @@ import { Icon, type IconName } from '../Icon'
 
 type MenuBarItemProps = {
   label: string
+  /** Metric id, reported to analytics when the item is clicked */
+  metric: string
   onClick: () => void
   ref?: Ref<HTMLButtonElement>
 } & ({ icon: IconName; value: string; width: number } | { appIcon: true })
@@ -17,6 +19,8 @@ export function MenuBarItem(props: MenuBarItemProps) {
       ref={props.ref}
       type="button"
       aria-label={props.label}
+      data-umami-event="Menu bar item"
+      data-umami-event-metric={props.metric}
       onClick={props.onClick}
       className="flex h-6 cursor-pointer flex-col items-center justify-center rounded-md px-1 text-[9px] leading-none font-bold tabular-nums hover:bg-white/18"
     >

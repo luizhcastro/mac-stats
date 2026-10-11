@@ -69,6 +69,8 @@ function SidebarRow({ item, selected, onSelect }: { item: Item; selected: boolea
       type="button"
       aria-current={selected ? 'page' : undefined}
       onClick={() => onSelect(item.id)}
+      data-umami-event="Window pane"
+      data-umami-event-pane={item.id}
       className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-[5px] text-left text-[13px] ${
         selected ? 'bg-accent font-medium text-on-accent' : 'hover:bg-white/8'
       }`}
@@ -88,6 +90,8 @@ export function CompactSidebar({ selection, onSelect }: SidebarProps) {
           key={item.id}
           type="button"
           onClick={() => onSelect(item.id)}
+          data-umami-event="Window pane"
+          data-umami-event-pane={item.id}
           className={`flex flex-none cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-[13px] ${
             item.id === selection ? 'bg-accent text-on-accent' : 'bg-white/8'
           }`}
