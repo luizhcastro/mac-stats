@@ -43,6 +43,10 @@ final class DisplayPreferences: ObservableObject {
         }
     }
 
+    @Published var shareAnalytics: Bool = Analytics.isEnabled {
+        didSet { UserDefaults.standard.set(shareAnalytics, forKey: Analytics.enabledKey) }
+    }
+
     init() {
         load()
         showDockIcon = UserDefaults.standard.bool(forKey: dockKey)

@@ -52,6 +52,8 @@ jobs:
       - name: Build app bundle
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
+          UMAMI_HOST: ${{ vars.UMAMI_HOST }}
+          UMAMI_WEBSITE_ID: ${{ vars.UMAMI_WEBSITE_ID }}
         run: ./Scripts/bundle.sh release
 
       - name: Resolve app path

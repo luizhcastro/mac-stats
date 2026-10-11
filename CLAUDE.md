@@ -7,7 +7,7 @@ Native macOS menu bar system monitor. Inspired by iStat Menus. Personal use, not
 - Replace macOS Activity Monitor for quick glances at CPU/RAM/Disk/Network/Battery.
 - Menu bar first: compact metrics always visible; dropdown for detail.
 - Per-process tops (CPU/RAM/Disk) so the user can spot hogs without opening Activity Monitor.
-- Target audience: the repo owner. No localization, no onboarding, no telemetry.
+- Target audience: the repo owner. No localization, no onboarding. Telemetry is limited to the opt-out daily Umami ping (see Updates & analytics).
 
 ### Non-goals
 
@@ -51,6 +51,8 @@ apps/macos/Sources/MacStats/
 ├── MenuBarSnapshot.swift        # frozen copy of selected metrics for the status bar
 ├── Formatters.swift             # byte/rate/percent formatting
 ├── ProcessKill.swift            # confirm-and-kill helper used by leader rows
+├── UpdateChecker.swift          # polls GitHub releases/latest; drives the popover banner + Settings card
+├── Analytics.swift              # opt-out Umami pings (heartbeat / popover_open / window_open), max 1 per name per day
 ├── Monitors/                    # stateless-ish samplers, one per hardware domain
 │   ├── CPUMonitor.swift         # aggregate host_statistics + per-core host_processor_info + getloadavg
 │   ├── MemoryMonitor.swift      # host_statistics64 HOST_VM_INFO64 + vm.swapusage + swap-in/out rates
@@ -147,6 +149,12 @@ Toggling `DisplayPreferences` while the popover is visible is buffered via `Menu
 3. On `popoverDidClose`, the pending snapshot is flushed and visibility is applied.
 
 Without this, the status item layout would shift during a popover session, causing focus loss and popover drift.
+
+## Updates & analytics
+
+`AppDelegate` runs a 6 h loop: `UpdateChecker.shared.check()` (GitHub `releases/latest`, `tag_name` vs `CFBundleShortVersionString` with `.numeric` compare) then `Analytics.track("heartbeat")`. `StatusBarController.openPopover` tracks `popover_open`, `MainWindowController.show` tracks `window_open`.
+
+`Analytics` posts to Umami `/api/send` with a random per-install UUID as the distinct `id` (so Umami Sessions / Retention follow one install over time) plus `version`, `macOS`, `arch`. Each event name is sent at most once per UTC day (`analytics.lastSent`, written only on HTTP 200). Config comes from `Info.plist` keys `MacStatsUmamiHost` / `MacStatsUmamiWebsiteID`, filled by `bundle.sh` from `UMAMI_HOST` / `UMAMI_WEBSITE_ID` (GitHub repo variables in `release.yml`). Empty = disabled, so local builds never ping. User opt-out: Settings → Privacy (`analytics.enabled`, default on). The User-Agent mimics a Mac browser because Umami drops bot-looking agents.
 
 ## Non-obvious technical decisions
 

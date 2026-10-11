@@ -14,6 +14,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        Analytics.track("window_open")
         if let window {
             activate(window)
             return
