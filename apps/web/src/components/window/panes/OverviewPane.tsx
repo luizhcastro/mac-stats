@@ -31,7 +31,7 @@ export function OverviewPane({ stats }: { stats: LiveStats }) {
         </MetricCard>
 
         <MetricCard title="Network" icon="network">
-          <div className="flex gap-[18px]">
+          <div className="flex flex-wrap gap-x-[18px] gap-y-1">
             <RateLabel direction="down" color={SYSTEM_COLORS.blue} value={formatRate(network.in)} />
             <RateLabel direction="up" color={SYSTEM_COLORS.orange} value={formatRate(network.out)} />
           </div>
@@ -46,7 +46,7 @@ export function OverviewPane({ stats }: { stats: LiveStats }) {
         </MetricCard>
 
         <MetricCard title="Disk" icon="internaldrive">
-          <div className="flex gap-[18px]">
+          <div className="flex flex-wrap gap-x-[18px] gap-y-1">
             <RateLabel direction="down" color={SYSTEM_COLORS.purple} value={formatRate(disk.read)} />
             <RateLabel direction="up" color={SYSTEM_COLORS.pink} value={formatRate(disk.write)} />
           </div>

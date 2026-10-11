@@ -48,7 +48,7 @@ export function MainWindow({ stats, visible, onToggleMetric }: MainWindowProps) 
       id={MAIN_WINDOW_ID}
       aria-label="MacStats main window preview"
       className="mx-auto mb-24 scroll-mt-16 w-[calc(100%-2.5rem)] max-w-[1180px]">
-      <div className="glass glass-dark flex h-[min(720px,85svh)] overflow-hidden rounded-[26px] p-2 max-md:flex-col max-md:p-0">
+      <div className="glass glass-dark flex h-[min(720px,85svh)] overflow-hidden rounded-[26px] p-2 max-md:h-auto max-md:flex-col max-md:p-0">
         <Sidebar selection={selection} onSelect={setSelection} />
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -59,7 +59,7 @@ export function MainWindow({ stats, visible, onToggleMetric }: MainWindowProps) 
             <span className="text-[15px] font-semibold">{SECTION_TITLES[selection]}</span>
           </div>
           <CompactSidebar selection={selection} onSelect={setSelection} />
-          <div className="min-h-0 flex-1 overflow-y-auto">{panes[selection]}</div>
+          <div className="min-h-0 flex-1 md:overflow-y-auto">{panes[selection]}</div>
         </div>
       </div>
     </section>
