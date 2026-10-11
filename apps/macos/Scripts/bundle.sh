@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-release}"
-VERSION="${VERSION:-0.5.1}"
+VERSION="${VERSION:-0.5.2}"
 swift build -c "$CONFIG"
 
 BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)"
@@ -38,6 +38,8 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>MacStatsUmamiHost</key><string>${UMAMI_HOST:-}</string>
+    <key>MacStatsUmamiWebsiteID</key><string>${UMAMI_WEBSITE_ID:-}</string>
     <key>NSLocationUsageDescription</key><string>MacStats reads the current Wi-Fi SSID and signal information so it can show the network you are connected to.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>MacStats reads the current Wi-Fi SSID and signal information so it can show the network you are connected to.</string>
 </dict>

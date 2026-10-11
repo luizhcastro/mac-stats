@@ -6,10 +6,14 @@ struct MenuBarContentView: View {
     @ObservedObject var prefs: DisplayPreferences
     var focus: BarMetric = .cpu
     var openWindow: () -> Void = {}
+    @ObservedObject private var updates = UpdateChecker.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if let release = updates.available {
+                updateBanner(release)
+            }
             Divider()
             cpuSection
             if stats.temperature.hasReadings {
@@ -64,6 +68,16 @@ struct MenuBarContentView: View {
             }
             .buttonStyle(.borderless)
             .help("Open main window")
+        }
+    }
+
+    private func updateBanner(_ release: UpdateChecker.Release) -> some View {
+        HStack {
+            Label("MacStats \(release.version) is available", systemImage: "arrow.down.circle.fill")
+                .font(.caption)
+            Spacer()
+            Button("Download") { NSWorkspace.shared.open(release.html_url) }
+                .controlSize(.small)
         }
     }
 

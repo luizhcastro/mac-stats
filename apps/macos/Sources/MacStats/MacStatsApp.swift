@@ -34,6 +34,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         installAppMenu()
+        Task {
+            while true {
+                await UpdateChecker.shared.check()
+                Analytics.track("heartbeat")
+                try? await Task.sleep(for: .seconds(6 * 3600))
+            }
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

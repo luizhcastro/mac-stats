@@ -135,6 +135,7 @@ final class StatusBarController {
     }
 
     private func openPopover(anchoredTo button: NSStatusBarButton, focus: BarMetric) {
+        Analytics.track("popover_open")
         stats.retainDetailSampling()
         stats.retainNetworkProcessSampling()
         popover.delegate = popoverDelegate
