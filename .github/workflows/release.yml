@@ -108,7 +108,8 @@ jobs:
           create-dmg \
             --volname "MacStats" \
             --window-pos 200 120 \
-            --window-size 660 420 \
+            --window-size 660 400 \
+            --background "Resources/dmg-background.tiff" \
             --icon-size 100 \
             --icon "MacStats.app" 170 200 \
             --hide-extension "MacStats.app" \

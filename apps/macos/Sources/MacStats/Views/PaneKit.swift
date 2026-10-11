@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 
 struct PaneHeader: View {
     let title: String
@@ -55,14 +54,21 @@ struct MetricCard<Content: View>: View {
             content
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-        )
+        .glassSurface(cornerRadius: 12)
+    }
+}
+
+extension View {
+    /// Liquid Glass on macOS 26+, flat control background with hairline below.
+    @ViewBuilder
+    func glassSurface(cornerRadius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(shape.fill(Color(nsColor: .controlBackgroundColor)))
+                .overlay(shape.strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
+        }
     }
 }
 
@@ -82,6 +88,30 @@ struct StatRow: View {
     }
 }
 
+struct SparkShape: Shape {
+    let values: [Double]
+    let lo: Double
+    let hi: Double
+    let closed: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        guard values.count > 1, hi > lo else { return p }
+        let stepX = rect.width / CGFloat(values.count - 1)
+        let span = hi - lo
+        func y(_ v: Double) -> CGFloat { rect.height * (1 - CGFloat((min(max(v, lo), hi) - lo) / span)) }
+        p.move(to: CGPoint(x: 0, y: y(values[0])))
+        for i in 1..<values.count { p.addLine(to: CGPoint(x: CGFloat(i) * stepX, y: y(values[i]))) }
+        if closed {
+            let base = y(max(lo, 0))
+            p.addLine(to: CGPoint(x: rect.width, y: base))
+            p.addLine(to: CGPoint(x: 0, y: base))
+            p.closeSubpath()
+        }
+        return p
+    }
+}
+
 struct AreaSpark: View, Equatable {
     let values: [Double]
     let max: Double
@@ -96,30 +126,12 @@ struct AreaSpark: View, Equatable {
     }
 
     var body: some View {
-        Chart {
-            ForEach(Array(values.enumerated()), id: \.offset) { idx, v in
-                AreaMark(
-                    x: .value("t", idx),
-                    yStart: .value("min", 0),
-                    yEnd: .value("v", v)
-                )
-                .interpolationMethod(.monotone)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [color.opacity(0.45), color.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                LineMark(x: .value("t", idx), y: .value("v", v))
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 1.4))
-            }
+        ZStack {
+            SparkShape(values: values, lo: 0, hi: max, closed: true)
+                .fill(LinearGradient(colors: [color.opacity(0.45), color.opacity(0.05)], startPoint: .top, endPoint: .bottom))
+            SparkShape(values: values, lo: 0, hi: max, closed: false)
+                .stroke(color, lineWidth: 1.4)
         }
-        .chartYScale(domain: 0...max)
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
         .frame(height: height)
     }
 }
@@ -149,23 +161,10 @@ struct DualAreaSpark: View, Equatable {
     }
 
     var body: some View {
-        Chart {
-            ForEach(Array(inValues.enumerated()), id: \.offset) { idx, v in
-                LineMark(x: .value("t", idx), y: .value("in", v))
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(inColor)
-                    .lineStyle(StrokeStyle(lineWidth: 1.4))
-            }
-            ForEach(Array(outValues.enumerated()), id: \.offset) { idx, v in
-                LineMark(x: .value("t", idx), y: .value("out", v))
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(outColor)
-                    .lineStyle(StrokeStyle(lineWidth: 1.4))
-            }
+        ZStack {
+            SparkShape(values: inValues, lo: 0, hi: max, closed: false).stroke(inColor, lineWidth: 1.4)
+            SparkShape(values: outValues, lo: 0, hi: max, closed: false).stroke(outColor, lineWidth: 1.4)
         }
-        .chartYScale(domain: 0...max)
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
         .frame(height: height)
     }
 }
@@ -192,27 +191,10 @@ struct CenteredSpark: View, Equatable {
 
     var body: some View {
         let absMax = max((values.map { abs($0) }.max() ?? 1), 0.5)
-        Chart {
-            ForEach(Array(values.enumerated()), id: \.offset) { idx, v in
-                LineMark(x: .value("t", idx), y: .value("v", v))
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 1.6))
-                AreaMark(
-                    x: .value("t", idx),
-                    yStart: .value("zero", 0),
-                    yEnd: .value("v", v)
-                )
-                .interpolationMethod(.monotone)
-                .foregroundStyle(color.opacity(0.18))
-            }
-            RuleMark(y: .value("zero", 0))
-                .foregroundStyle(.secondary.opacity(0.35))
-                .lineStyle(StrokeStyle(lineWidth: 0.5))
+        ZStack {
+            SparkShape(values: values, lo: -absMax, hi: absMax, closed: true).fill(color.opacity(0.18))
+            SparkShape(values: values, lo: -absMax, hi: absMax, closed: false).stroke(color, lineWidth: 1.6)
         }
-        .chartYScale(domain: -absMax...absMax)
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
         .frame(height: height)
     }
 }

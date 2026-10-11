@@ -24,11 +24,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     }
 
     private func activate(_ window: NSWindow) {
-        if !detailRetained {
-            stats.retainDetailSampling()
-            stats.retainFullProcessList()
-            detailRetained = true
-        }
+        setDetailRetained(true)
         prefs.applyActivationPolicy()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -47,6 +43,16 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         )
         window.title = "MacStats"
         window.contentViewController = host
+        if #available(macOS 26, *) {
+            // See-through window: desktop shows behind the glass sidebar/cards.
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = 0
+            host.view.frame = glass.bounds
+            glass.contentView = host.view
+            window.contentView = glass
+            window.isOpaque = false
+            window.backgroundColor = .clear
+        }
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
@@ -56,12 +62,27 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         return window
     }
 
-    func windowWillClose(_ notification: Notification) {
-        if detailRetained {
+    private func setDetailRetained(_ retained: Bool) {
+        guard retained != detailRetained else { return }
+        detailRetained = retained
+        if retained {
+            stats.retainDetailSampling()
+            stats.retainWindowDetail()
+        } else {
+            stats.releaseWindowDetail()
             stats.releaseDetailSampling()
-            stats.releaseFullProcessList()
-            detailRetained = false
         }
+    }
+
+    /// Minimized, on another Space or fully covered: stop the detail tier
+    /// (and with it process / nettop sampling) until the window is visible.
+    func windowDidChangeOcclusionState(_ notification: Notification) {
+        guard let window, notification.object as? NSWindow === window else { return }
+        setDetailRetained(window.occlusionState.contains(.visible))
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        setDetailRetained(false)
         prefs.applyActivationPolicy()
         // The window is retained (isReleasedWhenClosed = false), so its SwiftUI
         // hierarchy survives close and pane onDisappear never fires, leaking

@@ -21,7 +21,7 @@ final class ProcessMonitor {
     }
 
     private struct Prior {
-        var cpuTimeNs: UInt64
+        var cpuTicks: UInt64
         var diskRead: UInt64
         var diskWritten: UInt64
         var wakeups: UInt64
@@ -32,6 +32,15 @@ final class ProcessMonitor {
 
     private static let idleWakeupEnergyCost = 0.39
 
+    /// `pti_total_user` / `pti_total_system` are mach absolute-time ticks, not
+    /// nanoseconds. On Apple Silicon the timebase is 125/3, so treating them as
+    /// ns under-reports CPU% by ~42x.
+    private static let nsPerMachTick: Double = {
+        var tb = mach_timebase_info_data_t()
+        mach_timebase_info(&tb)
+        return tb.denom == 0 ? 1 : Double(tb.numer) / Double(tb.denom)
+    }()
+
     private struct ProcessIdentity: Hashable {
         let pid: Int32
         let startSeconds: UInt64
@@ -39,6 +48,13 @@ final class ProcessMonitor {
     }
 
     private var prior: [ProcessIdentity: Prior] = [:]
+    /// PIDs proc_pidinfo refused (EPERM: root-owned processes, ~40% of all
+    /// PIDs). Skipped until the next reset so they don't cost a failing
+    /// syscall every sample.
+    private var deniedPids: Set<Int32> = []
+    // ponytail: periodic reset covers PID reuse (a denied PID recycled by a
+    // user process shows up within ~1 min); track per-PID start time if not.
+    private static let deniedResetEverySamples: UInt64 = 30
     private var currentTick: UInt64 = 0
     private var lastSampleTime: Date?
     private var staleScratch: [ProcessIdentity] = []
@@ -66,20 +82,26 @@ final class ProcessMonitor {
         defer { lastSampleTime = now }
 
         currentTick &+= 1
+        if currentTick % Self.deniedResetEverySamples == 0 {
+            deniedPids.removeAll(keepingCapacity: true)
+        }
         var results: [ProcStat] = []
         results.reserveCapacity(pidCount)
 
         for idx in 0..<pidCount {
             let pid = pidBuf[idx]
-            guard pid > 0 else { continue }
-            guard let info = taskAllInfo(pid: pid) else { continue }
+            guard pid > 0, !deniedPids.contains(pid) else { continue }
+            guard let info = taskAllInfo(pid: pid) else {
+                if errno == EPERM { deniedPids.insert(pid) }
+                continue
+            }
             let task = info.ptinfo
             let identity = ProcessIdentity(
                 pid: pid,
                 startSeconds: info.pbsd.pbi_start_tvsec,
                 startMicroseconds: info.pbsd.pbi_start_tvusec
             )
-            let cpuTimeNs = task.pti_total_user + task.pti_total_system
+            let cpuTicks = task.pti_total_user &+ task.pti_total_system
             let rss = task.pti_resident_size
 
             var diskRead: UInt64 = 0
@@ -97,14 +119,16 @@ final class ProcessMonitor {
             var readRate = 0.0
             var writeRate = 0.0
             var wakeupsRate = 0.0
+            let priorIndex = prior.index(forKey: identity)
             var cachedName: String?
             var cachedNameLower: String?
-            if let p = prior[identity] {
+            if let priorIndex {
+                let p = prior.values[priorIndex]
                 cachedName = p.name
                 cachedNameLower = p.nameLower
                 if dt > 0 {
-                    if let deltaCpuNs = SamplingMath.delta(current: cpuTimeNs, previous: p.cpuTimeNs) {
-                        let deltaCpu = Double(deltaCpuNs) / 1_000_000_000.0
+                    if let deltaTicks = SamplingMath.delta(current: cpuTicks, previous: p.cpuTicks) {
+                        let deltaCpu = Double(deltaTicks) * Self.nsPerMachTick / 1_000_000_000.0
                         cpuPct = (deltaCpu / dt) * 100 / coreCount
                     }
                     readRate = SamplingMath.rate(current: diskRead, previous: p.diskRead, dt: dt)
@@ -117,15 +141,24 @@ final class ProcessMonitor {
 
             let name = cachedName ?? processName(pid: pid, info: info)
             let nameLower = cachedNameLower ?? name.lowercased()
-            prior[identity] = Prior(
-                cpuTimeNs: cpuTimeNs,
-                diskRead: diskRead,
-                diskWritten: diskWritten,
-                wakeups: wakeups,
-                tick: currentTick,
-                name: name,
-                nameLower: nameLower
-            )
+            if let priorIndex {
+                // Update counters in place; no rehash, no name String writes.
+                prior.values[priorIndex].cpuTicks = cpuTicks
+                prior.values[priorIndex].diskRead = diskRead
+                prior.values[priorIndex].diskWritten = diskWritten
+                prior.values[priorIndex].wakeups = wakeups
+                prior.values[priorIndex].tick = currentTick
+            } else {
+                prior[identity] = Prior(
+                    cpuTicks: cpuTicks,
+                    diskRead: diskRead,
+                    diskWritten: diskWritten,
+                    wakeups: wakeups,
+                    tick: currentTick,
+                    name: name,
+                    nameLower: nameLower
+                )
+            }
 
             let cpuPctClamped = max(0, cpuPct)
             let wakeupsClamped = trackEnergy ? max(0, wakeupsRate) : 0

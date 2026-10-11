@@ -58,11 +58,15 @@ struct ProcessesPane: View {
             }
         }
         .onAppear {
+            stats.retainFullProcessList()
             stats.retainNetworkProcessSampling()
             lastSeenGeneration = stats.snapshot.processGeneration
             rebuild()
         }
-        .onDisappear { stats.releaseNetworkProcessSampling() }
+        .onDisappear {
+            stats.releaseFullProcessList()
+            stats.releaseNetworkProcessSampling()
+        }
         .onReceive(stats.$snapshot) { snap in
             guard snap.processGeneration != lastSeenGeneration else { return }
             lastSeenGeneration = snap.processGeneration
@@ -139,10 +143,7 @@ struct ProcessesPane: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
+            .glassSurface(cornerRadius: 8)
 
             if let pid = selection,
                let row = rows.first(where: { $0.pid == pid }) {

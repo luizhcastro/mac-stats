@@ -79,11 +79,12 @@ final class CPUMonitor {
         let aggregate = sampleAggregate()
         let cores = includeCores ? sampleCores() : []
 
-        var loads = [Double](repeating: 0, count: 3)
-        let n = getloadavg(&loads, 3)
-        let load = n == 3
-            ? LoadAverage(one: loads[0], five: loads[1], fifteen: loads[2])
-            : LoadAverage.zero
+        // Stack buffer: this runs every tick in the always-on tier.
+        let load = withUnsafeTemporaryAllocation(of: Double.self, capacity: 3) { loads in
+            getloadavg(loads.baseAddress, 3) == 3
+                ? LoadAverage(one: loads[0], five: loads[1], fifteen: loads[2])
+                : LoadAverage.zero
+        }
 
         return Sample(
             usage: aggregate.usage,
@@ -108,10 +109,10 @@ final class CPUMonitor {
         defer { previousLoad = load }
         guard let prev = previousLoad else { return (0, 0, 0, 0) }
 
-        let user = Double(load.cpu_ticks.0 - prev.cpu_ticks.0)
-        let sys = Double(load.cpu_ticks.1 - prev.cpu_ticks.1)
-        let idle = Double(load.cpu_ticks.2 - prev.cpu_ticks.2)
-        let nice = Double(load.cpu_ticks.3 - prev.cpu_ticks.3)
+        let user = Double(load.cpu_ticks.0 &- prev.cpu_ticks.0)
+        let sys = Double(load.cpu_ticks.1 &- prev.cpu_ticks.1)
+        let idle = Double(load.cpu_ticks.2 &- prev.cpu_ticks.2)
+        let nice = Double(load.cpu_ticks.3 &- prev.cpu_ticks.3)
         let total = user + sys + idle + nice
         guard total > 0 else { return (0, 0, 0, 0) }
         return (
