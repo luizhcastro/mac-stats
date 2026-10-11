@@ -110,7 +110,7 @@ struct MainWindowView: View {
         } detail: {
             detailPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(Color(nsColor: .windowBackgroundColor))
+                .background(detailBackground)
         }
         .navigationTitle(selection.title)
         .onAppear { available = SidebarAvailability(stats.snapshot) }
@@ -118,6 +118,11 @@ struct MainWindowView: View {
             let next = SidebarAvailability(snap)
             if next != available { available = next }
         }
+    }
+
+    private var detailBackground: Color {
+        if #available(macOS 26, *) { return .clear }
+        return Color(nsColor: .windowBackgroundColor)
     }
 
     @ViewBuilder

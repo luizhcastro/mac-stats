@@ -143,10 +143,7 @@ struct ProcessesPane: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
+            .glassSurface(cornerRadius: 8)
 
             if let pid = selection,
                let row = rows.first(where: { $0.pid == pid }) {

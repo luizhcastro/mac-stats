@@ -54,14 +54,21 @@ struct MetricCard<Content: View>: View {
             content
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-        )
+        .glassSurface(cornerRadius: 12)
+    }
+}
+
+extension View {
+    /// Liquid Glass on macOS 26+, flat control background with hairline below.
+    @ViewBuilder
+    func glassSurface(cornerRadius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(shape.fill(Color(nsColor: .controlBackgroundColor)))
+                .overlay(shape.strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
+        }
     }
 }
 

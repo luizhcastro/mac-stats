@@ -130,6 +130,10 @@ When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(for
 
 `DisplayPreferences.showDockIcon` (UserDefaults `dock.icon`, default false) drives `NSApp.setActivationPolicy` through `applyActivationPolicy()`. `Info.plist` still sets `LSUIElement`, so launch starts accessory; the pref is applied right after `DisplayPreferences` is built, on every main window open, and again on window close. Toggling it in the Settings pane applies immediately.
 
+### Liquid Glass (macOS 26)
+
+On macOS 26 the main window's content is wrapped in an `NSGlassEffectView` (window non-opaque, clear background) and the detail column drops its solid background, so the whole window is see-through glass. `MetricCard` and the Processes filter field use `View.glassSurface(cornerRadius:)` (`PaneKit.swift`), which applies `.glassEffect` on 26 and falls back to the flat control background + hairline on 13–15. The popover and sidebar get system glass from the SDK with no code.
+
 ### Freezing the menu bar while the popover is open
 
 Toggling `DisplayPreferences` while the popover is visible is buffered via `MenuBarSnapshot`:
