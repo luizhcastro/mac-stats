@@ -36,7 +36,9 @@ export function Desktop({ stats, visible, onToggleMetric }: DesktopProps) {
   }
 
   return (
-    <div className="relative min-h-svh pb-20">
+    // The dropdown floats (position: absolute), so it takes no space in the flow. Reserve at least
+    // its height (~870px from the top) so the window section below never slides under it.
+    <div className="relative min-h-[max(100svh,60rem)] pb-20">
       <MenuBar stats={stats} visible={visible} onItemClick={openFrom} itemRef={registerItem} />
       <div className="mx-auto max-w-[1280px] px-[clamp(1.25rem,4vw,3rem)]">
         <Hero />
