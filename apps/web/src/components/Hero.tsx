@@ -7,7 +7,7 @@ export function Hero() {
       <img
         src="/icon.png"
         alt="MacStats icon"
-        className="mb-8 size-28 drop-shadow-[0_18px_30px_rgb(0_0_0/0.5)]"
+        className="mb-8 size-28 max-sm:mb-6 max-sm:size-20 drop-shadow-[0_18px_30px_rgb(0_0_0/0.5)]"
       />
       <h1 className="max-w-[11ch] text-[clamp(2.8rem,6.5vw,5.4rem)] leading-[1.02] font-bold tracking-[-0.035em]">
         Your Mac’s vitals, one glance away.

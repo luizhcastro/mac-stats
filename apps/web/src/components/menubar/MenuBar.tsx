@@ -23,12 +23,12 @@ export function MenuBar({ stats, visible, onItemClick, itemRef }: MenuBarProps) 
   ] as const
 
   return (
-    <div className="glass sticky top-0 z-30 flex h-[30px] items-center justify-between rounded-none border-x-0 border-t-0 px-3.5 text-[13px]">
+    <div className="glass sticky top-0 z-30 flex h-[30px] items-center justify-between rounded-none border-x-0 border-t-0 px-3.5 text-[13px] max-sm:px-2.5">
       <div className="flex items-center gap-[18px] max-sm:gap-3">
         <AppleLogo />
-        <b>Finder</b>
-        <span>File</span>
-        <span>Edit</span>
+        <b className="max-[400px]:hidden">Finder</b>
+        <span className="max-[480px]:hidden">File</span>
+        <span className="max-[480px]:hidden">Edit</span>
         <span className="max-sm:hidden">View</span>
         <span className="max-desk:hidden">Go</span>
         <span className="max-desk:hidden">Window</span>

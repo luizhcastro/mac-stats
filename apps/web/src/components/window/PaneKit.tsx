@@ -98,7 +98,7 @@ export function LabeledRate({ label, value, color }: { label: string; value: str
 /** "↓ 1.4 MB/s" with a colored arrow, used in the overview network and disk cards */
 export function RateLabel({ direction, color, value }: { direction: 'down' | 'up'; color: string; value: string }) {
   return (
-    <span className="flex items-center gap-1 text-sm tabular-nums">
+    <span className="flex items-center gap-1 text-sm whitespace-nowrap tabular-nums">
       <span style={{ color }}>
         <Icon name={direction === 'down' ? 'arrowDown' : 'arrowUp'} className="size-3.5" />
       </span>

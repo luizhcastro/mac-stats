@@ -29,7 +29,7 @@ export function StatsPopover({ stats, position, tab, onTabChange, visible, onTog
       aria-label="MacStats dropdown preview"
       style={position ? { left: position.left } : undefined}
       className={`glass glass-dark w-[min(340px,100%)] rounded-[22px] p-3.5 text-[13px] leading-[1.3] ${
-        position ? 'absolute top-[38px] z-20' : 'relative mx-auto mt-12'
+        position ? 'absolute top-[38px] z-20' : 'relative mx-auto mt-12 md:mt-16'
       }`}
     >
       <PopoverArrow left={position?.arrow} />

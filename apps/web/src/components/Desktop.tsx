@@ -36,11 +36,12 @@ export function Desktop({ stats, visible, onToggleMetric }: DesktopProps) {
   }
 
   return (
-    // The dropdown floats (position: absolute), so it takes no space in the flow. Reserve at least
-    // its height (~870px from the top) so the window section below never slides under it.
-    <div className="relative min-h-[max(100svh,60rem)] pb-20">
+    // On wide screens the dropdown floats (position: absolute) and takes no space in the flow, so
+    // reserve its height (~870px from the top) to keep the window section from sliding under it.
+    <div className="relative min-h-svh pb-20 desk:min-h-[max(100svh,60rem)]">
       <MenuBar stats={stats} visible={visible} onItemClick={openFrom} itemRef={registerItem} />
-      <div className="mx-auto max-w-[1280px] px-[clamp(1.25rem,4vw,3rem)]">
+      {/* Phones: copy then dropdown. Tablets: side by side. Desktop: dropdown floats under the menu bar. */}
+      <div className="mx-auto max-w-[1280px] px-[clamp(1.25rem,4vw,3rem)] md:max-desk:grid md:max-desk:grid-cols-[minmax(0,1fr)_340px] md:max-desk:items-start md:max-desk:gap-10">
         <Hero />
         <StatsPopover
           stats={stats}
