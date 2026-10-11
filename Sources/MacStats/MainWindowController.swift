@@ -43,6 +43,16 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         )
         window.title = "MacStats"
         window.contentViewController = host
+        if #available(macOS 26, *) {
+            // See-through window: desktop shows behind the glass sidebar/cards.
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = 0
+            host.view.frame = glass.bounds
+            glass.contentView = host.view
+            window.contentView = glass
+            window.isOpaque = false
+            window.backgroundColor = .clear
+        }
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
