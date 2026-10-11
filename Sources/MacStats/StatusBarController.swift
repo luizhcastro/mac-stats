@@ -10,6 +10,7 @@ final class StatusBarController {
     private let snapshot: MenuBarSnapshot
     private let openWindow: () -> Void
     private var statusItems: [BarMetric: NSStatusItem] = [:]
+    private var labelModels: [BarMetric: MetricLabelModel] = [:]
     private var cancellables: Set<AnyCancellable> = []
     private var pendingSnapshot: [BarMetric]?
     private var outsideClickMonitor: Any?
@@ -28,6 +29,10 @@ final class StatusBarController {
         buildAllStatusItems()
         applyVisibility()
         syncTemperatureAlwaysOn(prefs.selected)
+
+        stats.$snapshot
+            .sink { [weak self] snap in self?.updateLabels(snap) }
+            .store(in: &cancellables)
 
         prefs.$selected
             .dropFirst()
@@ -51,7 +56,10 @@ final class StatusBarController {
             item.autosaveName = "macstats.\(metric.rawValue)"
             guard let button = item.button else { continue }
 
-            let label = SingleMetricLabel(stats: stats, metric: metric)
+            let model = MetricLabelModel()
+            model.text = SingleMetricLabel.text(for: metric, in: stats.snapshot)
+            labelModels[metric] = model
+            let label = SingleMetricLabel(model: model, metric: metric)
             let host = NSHostingView(rootView: label)
             host.translatesAutoresizingMaskIntoConstraints = false
             button.subviews.forEach { $0.removeFromSuperview() }
@@ -78,6 +86,17 @@ final class StatusBarController {
         let selected = Set(snapshot.selected)
         for (metric, item) in statusItems {
             item.isVisible = selected.contains(metric)
+        }
+        updateLabels(stats.snapshot)
+    }
+
+    /// Formats only the visible metrics and publishes a label only when its
+    /// string changed.
+    private func updateLabels(_ snap: SystemSnapshot) {
+        for metric in snapshot.selected where metric != .appIcon {
+            guard let model = labelModels[metric] else { continue }
+            let text = SingleMetricLabel.text(for: metric, in: snap)
+            if model.text != text { model.text = text }
         }
     }
 

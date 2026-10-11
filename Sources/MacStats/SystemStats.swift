@@ -133,6 +133,7 @@ final class SystemStats: ObservableObject {
     private let sampler = StatsSampler()
     private var samplingTask: Task<Void, Never>?
     private var detailRetainCount = 0
+    private var windowDetailRetainCount = 0
     private var fullProcessListRetainCount = 0
     private var networkProcessRetainCount = 0
 
@@ -182,6 +183,31 @@ final class SystemStats: ObservableObject {
         if detailRetainCount == 0 {
             Task { [sampler] in
                 await sampler.setDetailSamplingEnabled(false)
+            }
+        }
+    }
+
+    /// Main-window-only data on top of the detail tier: per-core CPU,
+    /// per-interface stats, Wi-Fi, GPU, fans, public IP, SMART and the full
+    /// history. The popover never shows these. Callers must also hold a
+    /// detail retain.
+    func retainWindowDetail() {
+        windowDetailRetainCount += 1
+        if windowDetailRetainCount == 1 {
+            Task { [weak self] in
+                guard let self else { return }
+                await sampler.setWindowDetailEnabled(true)
+                await refresh(forceDetailRefresh: true)
+            }
+        }
+    }
+
+    func releaseWindowDetail() {
+        guard windowDetailRetainCount > 0 else { return }
+        windowDetailRetainCount -= 1
+        if windowDetailRetainCount == 0 {
+            Task { [sampler] in
+                await sampler.setWindowDetailEnabled(false)
             }
         }
     }
@@ -337,9 +363,11 @@ private actor StatsSampler {
 
     private var tickCount = 0
     private var detailSamplingEnabled = false
+    private var windowDetailEnabled = false
     private var energyTrackingEnabled = false
     private var fullProcessListEnabled = false
     private var networkProcessSamplingEnabled = false
+    private var nettopRunning = false
     private var temperatureAlwaysOn = false
 
     private var cpuRings = MetricRings()
@@ -353,11 +381,14 @@ private actor StatsSampler {
     private var batteryPercentRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var batteryWattageRing = [Double](repeating: 0, count: StatsSampler.historyCapacity)
     private var batteryRingHead = 0
+    private var batteryHistoryCache: (percent: [Double], wattage: [Double])?
 
     private var lastBattery = BatteryMonitor.Sample.empty
     private var lastBatterySampleTick: Int?
     private var lastTemperature = TemperatureMonitor.Sample.empty
     private var lastTemperatureSampleTick: Int?
+    private var temperatureInFlight = false
+    private static let temperatureQueue = DispatchQueue(label: "macstats.temperature", qos: .utility)
     private var lastGPU = GPUMonitor.Sample.empty
     private var lastGPUSampleTick: Int?
     private var lastFans = FanMonitor.Sample.empty
@@ -381,16 +412,30 @@ private actor StatsSampler {
 
     func setDetailSamplingEnabled(_ enabled: Bool) {
         detailSamplingEnabled = enabled
+        updateNettop()
     }
 
     func setTemperatureAlwaysOn(_ enabled: Bool) {
         temperatureAlwaysOn = enabled
     }
 
+    func setWindowDetailEnabled(_ enabled: Bool) {
+        windowDetailEnabled = enabled
+    }
+
     func setNetworkProcessSamplingEnabled(_ enabled: Bool) {
-        guard networkProcessSamplingEnabled != enabled else { return }
         networkProcessSamplingEnabled = enabled
-        if enabled {
+        updateNettop()
+    }
+
+    /// nettop output is only consumed inside the detail tier, so keep the
+    /// child running only while both a consumer and detail sampling are on
+    /// (e.g. a Network pane in a minimized window doesn't need it).
+    private func updateNettop() {
+        let shouldRun = networkProcessSamplingEnabled && detailSamplingEnabled
+        guard shouldRun != nettopRunning else { return }
+        nettopRunning = shouldRun
+        if shouldRun {
             networkProcessMonitor.start()
         } else {
             networkProcessMonitor.stop()
@@ -410,15 +455,19 @@ private actor StatsSampler {
     }
 
     func sample(forceDetailRefresh: Bool = false) -> SystemSnapshot {
-        let cpu = cpuMonitor.sample(includeCores: detailSamplingEnabled)
+        // detail: popover-level data (battery, temperature, process leaders,
+        // root volume). windowDetail: everything only the main window shows.
+        let windowDetail = detailSamplingEnabled && windowDetailEnabled
+        let cpu = cpuMonitor.sample(includeCores: windowDetail)
         let memory = memoryMonitor.sample()
-        let network = networkMonitor.sample(includeInterfaceDetail: detailSamplingEnabled)
+        let network = networkMonitor.sample(includeInterfaceDetail: windowDetail)
         let disk = diskMonitor.sample(
             includeVolumeStats: detailSamplingEnabled,
+            includeSmart: windowDetail,
             forceVolumeStatsRefresh: forceDetailRefresh
         )
 
-        if detailSamplingEnabled {
+        if windowDetail {
             maybeFetchPublicIP()
         }
 
@@ -445,25 +494,34 @@ private actor StatsSampler {
                 let signed = lastBattery.isCharging ? raw : -raw
                 batteryWattageRing[batteryRingHead] = signed
                 batteryRingHead = (batteryRingHead + 1) % Self.historyCapacity
+                batteryHistoryCache = nil
             }
         }
 
-        if (detailSamplingEnabled || temperatureAlwaysOn) && shouldRefreshTemperature(force: forceDetailRefresh) {
-            lastTemperature = temperatureMonitor.sample()
+        if (detailSamplingEnabled || temperatureAlwaysOn)
+            && !temperatureInFlight
+            && shouldRefreshTemperature(force: forceDetailRefresh) {
             lastTemperatureSampleTick = tickCount
+            temperatureInFlight = true
+            // IOHID reads block on the driver for several ms; keep them off
+            // the actor so the 1 s tick never waits on them.
+            Self.temperatureQueue.async { [temperatureMonitor, weak self] in
+                let sample = temperatureMonitor.sample()
+                Task { await self?.applyTemperature(sample) }
+            }
         }
 
-        if detailSamplingEnabled && shouldRefreshWiFi(force: forceDetailRefresh) {
+        if windowDetail && shouldRefreshWiFi(force: forceDetailRefresh) {
             lastWiFi = wifiMonitor.sample()
             lastWiFiSampleTick = tickCount
         }
 
-        if detailSamplingEnabled && shouldRefreshGPU(force: forceDetailRefresh) {
+        if windowDetail && shouldRefreshGPU(force: forceDetailRefresh) {
             lastGPU = gpuMonitor.sample()
             lastGPUSampleTick = tickCount
         }
 
-        if detailSamplingEnabled && shouldRefreshFans(force: forceDetailRefresh) {
+        if windowDetail && shouldRefreshFans(force: forceDetailRefresh) {
             lastFans = fanMonitor.sample()
             lastFansSampleTick = tickCount
         }
@@ -472,7 +530,7 @@ private actor StatsSampler {
 
         if detailSamplingEnabled && shouldRefreshProcesses(force: forceDetailRefresh) {
             var processes = processMonitor.sample()
-            let netProcesses = networkProcessSamplingEnabled
+            let netProcesses = nettopRunning
                 ? networkProcessMonitor.sample()
                 : []
             if fullProcessListEnabled {
@@ -488,8 +546,18 @@ private actor StatsSampler {
             processGeneration &+= 1
         }
 
-        let history: MetricHistory = detailSamplingEnabled
-            ? MetricHistory(
+        var history = MetricHistory.empty
+        if windowDetail {
+            // Battery rings only advance every 30 ticks; reuse the linearized
+            // arrays in between.
+            if batteryHistoryCache == nil {
+                batteryHistoryCache = (
+                    linearized(batteryPercentRing, head: batteryRingHead),
+                    linearized(batteryWattageRing, head: batteryRingHead)
+                )
+            }
+            let battery = batteryHistoryCache!
+            history = MetricHistory(
                 cpu: cpuRings.snapshot(),
                 memoryPercent: memRings.snapshot(),
                 networkIn: netInRings.snapshot(),
@@ -497,10 +565,13 @@ private actor StatsSampler {
                 diskRead: diskReadRings.snapshot(),
                 diskWrite: diskWriteRings.snapshot(),
                 temperature: temperatureRings.snapshot(),
-                batteryPercent: linearized(batteryPercentRing, head: batteryRingHead),
-                batteryWattage: linearized(batteryWattageRing, head: batteryRingHead)
+                batteryPercent: battery.percent,
+                batteryWattage: battery.wattage
             )
-            : .empty
+        } else if detailSamplingEnabled {
+            // The popover only draws the CPU sparkline.
+            history.cpu = cpuRings.snapshot()
+        }
 
         return SystemSnapshot(
             cpu: cpu,
@@ -519,6 +590,11 @@ private actor StatsSampler {
             allProcesses: lastProcessList,
             processGeneration: processGeneration
         )
+    }
+
+    private func applyTemperature(_ sample: TemperatureMonitor.Sample) {
+        temperatureInFlight = false
+        lastTemperature = sample
     }
 
     private func maybeFetchPublicIP() {

@@ -49,10 +49,30 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+/// Which hardware-dependent sidebar entries exist. Tracked separately so the
+/// sidebar only re-renders when one of these flips, not on every tick.
+private struct SidebarAvailability: Equatable {
+    var gpu = false
+    var battery = false
+    var temperature = false
+    var fans = false
+
+    init() {}
+
+    init(_ snap: SystemSnapshot) {
+        gpu = snap.gpu.hasReadings
+        battery = snap.battery.hasBattery
+        temperature = snap.temperature.hasReadings
+        fans = snap.fans.supported
+    }
+}
+
 struct MainWindowView: View {
-    @ObservedObject var stats: SystemStats
+    // Not observed: each pane observes `stats` itself.
+    let stats: SystemStats
     @ObservedObject var prefs: DisplayPreferences
     @State private var selection: SidebarSection = .dashboard
+    @State private var available = SidebarAvailability()
 
     var body: some View {
         NavigationSplitView {
@@ -62,19 +82,19 @@ struct MainWindowView: View {
                 }
                 Section("Hardware") {
                     sidebarRow(.cpu)
-                    if stats.gpu.hasReadings {
+                    if available.gpu {
                         sidebarRow(.gpu)
                     }
                     sidebarRow(.memory)
                     sidebarRow(.disk)
                     sidebarRow(.network)
-                    if stats.battery.hasBattery {
+                    if available.battery {
                         sidebarRow(.battery)
                     }
-                    if stats.temperature.hasReadings {
+                    if available.temperature {
                         sidebarRow(.temperature)
                     }
-                    if stats.fans.supported {
+                    if available.fans {
                         sidebarRow(.fans)
                     }
                 }
@@ -93,6 +113,11 @@ struct MainWindowView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
         }
         .navigationTitle(selection.title)
+        .onAppear { available = SidebarAvailability(stats.snapshot) }
+        .onReceive(stats.$snapshot) { snap in
+            let next = SidebarAvailability(snap)
+            if next != available { available = next }
+        }
     }
 
     @ViewBuilder

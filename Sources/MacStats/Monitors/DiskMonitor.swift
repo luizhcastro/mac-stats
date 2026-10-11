@@ -47,14 +47,21 @@ final class DiskMonitor {
     private var lastVolumeStatsRefresh: Date?
     private let volumeRefreshInterval: TimeInterval = 30
     private var smartCache: [String: (status: SMARTStatus, at: Date)] = [:]
-    private let smartTTL: TimeInterval = 300
+    // ponytail: SMART spawns `diskutil` (~50 ms, blocking) per disk; status
+    // practically never changes, so refresh hourly and only for the main window.
+    private let smartTTL: TimeInterval = 3600
 
-    func sample(includeVolumeStats: Bool, forceVolumeStatsRefresh: Bool = false) -> Sample {
+    func sample(
+        includeVolumeStats: Bool,
+        includeSmart: Bool = false,
+        forceVolumeStatsRefresh: Bool = false
+    ) -> Sample {
         let (read, written) = readIOStats()
         let now = Date()
         let volumes = volumeList(
             at: now,
             includeVolumeStats: includeVolumeStats,
+            includeSmart: includeSmart,
             forceRefresh: forceVolumeStatsRefresh
         )
         let root = volumes.first(where: { $0.isRoot })
@@ -94,20 +101,20 @@ final class DiskMonitor {
         )
     }
 
-    private func volumeList(at now: Date, includeVolumeStats: Bool, forceRefresh: Bool) -> [VolumeInfo] {
+    private func volumeList(at now: Date, includeVolumeStats: Bool, includeSmart: Bool, forceRefresh: Bool) -> [VolumeInfo] {
         guard includeVolumeStats else { return cachedVolumes }
         let shouldRefresh =
             forceRefresh ||
             cachedVolumes.isEmpty ||
             lastVolumeStatsRefresh.map { now.timeIntervalSince($0) >= volumeRefreshInterval } ?? true
         if shouldRefresh {
-            cachedVolumes = enumerateVolumes(now: now)
+            cachedVolumes = enumerateVolumes(now: now, includeSmart: includeSmart)
             lastVolumeStatsRefresh = now
         }
         return cachedVolumes
     }
 
-    private func enumerateVolumes(now: Date) -> [VolumeInfo] {
+    private func enumerateVolumes(now: Date, includeSmart: Bool) -> [VolumeInfo] {
         let keys: Set<URLResourceKey> = [
             .volumeNameKey,
             .volumeTotalCapacityKey,
@@ -137,7 +144,9 @@ final class DiskMonitor {
             }
             let bsd = device.hasPrefix("/dev/") ? String(device.dropFirst(5)) : device
             let physical = parentDisk(bsd: bsd)
-            let smart = lookupSmart(bsd: physical, now: now)
+            let smart = includeSmart
+                ? lookupSmart(bsd: physical, now: now)
+                : smartCache[physical]?.status ?? .unknown
             out.append(VolumeInfo(
                 bsdName: bsd,
                 physicalDisk: physical,

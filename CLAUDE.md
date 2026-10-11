@@ -43,7 +43,7 @@ When iterating, kill before rebuild (`pkill -x MacStats`). If a change looks lik
 Sources/MacStats/
 ├── MacStatsApp.swift            # @main, AppDelegate; spawns StatusBarController + MainWindowController; pkill orphan nettops on launch/quit
 ├── StatusBarController.swift    # owns N NSStatusItems (one per metric) + shared NSPopover; retains detail + nettop sampling while popover is shown
-├── MainWindowController.swift   # NSWindowController hosting MainWindowView (sidebar + detail panes)
+├── MainWindowController.swift   # NSWindowController hosting MainWindowView; holds detail + window-detail tiers while visible (occlusion-aware)
 ├── SystemStats.swift            # @MainActor ObservableObject + actor StatsSampler; refcounted detail/full-process/nettop tiers; ThermalLevel enum
 ├── DisplayPreferences.swift     # BarMetric enum + which metrics show in menu bar (UserDefaults-backed)
 ├── MenuBarSnapshot.swift        # frozen copy of selected metrics for the status bar
@@ -64,12 +64,12 @@ Sources/MacStats/
 │   ├── FanMonitor.swift         # SMC F<i>Ac/Mn/Mx/Tg/ID → FanInfo[]
 │   └── SamplingMath.swift       # shared delta / rate helpers (handles counter rollover)
 └── Views/
-    ├── SingleMetricLabel.swift     # one metric in the menu bar (icon above compact value)
+    ├── SingleMetricLabel.swift     # one metric in the menu bar; reads a MetricLabelModel that StatusBarController updates only when the text changes
     ├── MenuBarContentView.swift    # dropdown / popover content (header + sections + prefs + quit)
     ├── MenuBarPrefsView.swift      # 3-col grid of checkboxes for which metrics show in bar
     ├── TopProcessesView.swift      # tabbed top processes (CPU/RAM/Disk/Network/Energy)
     ├── MainWindowView.swift        # sidebar nav (Overview / Hardware / Activity)
-    ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, AreaSpark, DualAreaSpark, ScaleHelper
+    ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, SparkShape, AreaSpark, DualAreaSpark, CenteredSpark, ScaleHelper
     └── Panes/
         ├── DashboardPane.swift     # at-a-glance card grid (cpu, mem, network, disk, battery, temperature)
         ├── MetricPanes.swift       # CPU / GPU / Memory / Disk / Network / Battery / Temperature / Fans + LeaderList
@@ -90,29 +90,31 @@ design_handoff_macstats_logo/   # canonical icon source (SVG + sized PNGs + READ
 
 ### Detail sampling (refcount-gated)
 
-Sampling is split into two tiers to keep idle cost low:
+Sampling is split into three tiers to keep idle cost low:
 
 - **Always-on, cheap**: CPU aggregate, memory + swap (sysctl), network aggregate counters (allocation-free `getifaddrs` walk, no per-interface structs), disk I/O rate (cached `IOBlockStorageDriver` services, 30 s re-enumeration + immediate refresh when a cached service dies; counters read via `CFDictionaryGetValue`, no dict bridging), thermal pressure (`ProcessInfo.thermalState`). Every tick. The 1 s loop sleeps with 100 ms tolerance so the kernel can coalesce timer wakeups.
-- **Detail-only, expensive**: per-core CPU (`host_processor_info`), battery (IOKit power source query), full process list (iterating every PID + `proc_pidinfo` + rusage), per-volume capacity / SMART (`URL.resourceValues` XPC + `diskutil info -plist` spawn), per-interface IPv4 / IPv6 enrichment (`getnameinfo`), Wi-Fi info (CoreWLAN), GPU stats (IOAccelerator copy), fan readings (SMC user client), temperature (IOHID event copy across all sensors), public IP (HTTPS request).
+- **Detail (popover + window), expensive**: battery (IOKit power source query), process list (iterating every PID + `proc_pidinfo` + rusage), per-volume capacity (`URL.resourceValues` XPC), temperature (IOHID event copy, read off the actor on a utility queue), CPU history series.
+- **Window detail (main window only)**: per-core CPU (`host_processor_info`), per-interface IPv4 / IPv6 (`inet_ntop`, fe80 skipped on raw bytes), Wi-Fi info (CoreWLAN), GPU stats (IOAccelerator copy), fan readings (SMC user client), SMART (`diskutil info -plist` spawn, hourly), public IP (HTTPS request), full history. The popover never shows these.
 
-`SystemStats` exposes three independent **refcount** APIs instead of plain on/off setters:
+`SystemStats` exposes four independent **refcount** APIs instead of plain on/off setters:
 
 - `retainDetailSampling()` / `releaseDetailSampling()` — toggles the detail tier.
-- `retainFullProcessListEnabled()` / `releaseFullProcessListEnabled()` — populates `snapshot.allProcesses` (consumed only by the full process table). Detail tier already populates `processLeaders`.
+- `retainWindowDetail()` / `releaseWindowDetail()` — window-only data on top of the detail tier. `MainWindowController` holds both while the window is visible and releases them when it's occluded (minimized, other Space, fully covered) or closed.
+- `retainFullProcessList()` / `releaseFullProcessList()` — populates `snapshot.allProcesses` (consumed only by `ProcessesPane`, which retains it on appear). Detail tier already populates `processLeaders`.
 - `retainNetworkProcessSampling()` / `releaseNetworkProcessSampling()` — starts/stops the long-running `nettop` child.
 
-Each consumer (popover, NetworkPane, ProcessesPane) calls retain on appear / open and release on disappear / close. The first retain transitions the tier on; the last release transitions it off. This means the popover can stay closed while the main window keeps a network/process view alive — and conversely, opening the popover doesn't double-spawn nettop.
+Each consumer (popover, NetworkPane, ProcessesPane) calls retain on appear / open and release on disappear / close. The first retain transitions the tier on; the last release transitions it off. This means the popover can stay closed while the main window keeps a network/process view alive — and conversely, opening the popover doesn't double-spawn nettop. nettop itself only runs while a network consumer *and* the detail tier are both on, so a Network pane in an occluded window doesn't keep it alive.
 
 Additional cadences inside the detail tier:
 
 - Battery: every 30 ticks (~30 s) — a `lastBatterySampleTick` counter spaces it out. Each refresh appends to a 60-slot ring (= 30 min of charge % + signed wattage history).
 - Processes: every 2 ticks when detail sampling is on.
-- Volume stats: cached for 30 s; SMART per disk cached for 5 min.
+- Volume stats: cached for 30 s; SMART per disk cached for 1 h, window tier only.
 - Temperature: every 5 ticks (~5 s) — `lastTemperatureSampleTick`. CPU temp is pushed into a 60-sample ring every tick (repeats last sample) so the sparkline is smooth. Sampling is also kept alive outside the detail tier when the user has the temperature metric selected in the menu bar (`StatusBarController` calls `setTemperatureAlwaysOn(true)` on prefs change), so a visible status item stays current even with the popover and main window closed.
-- GPU + Fans + Wi-Fi: every 5 ticks (~5 s) — `lastGPUSampleTick` / `lastFansSampleTick` / `lastWiFiSampleTick`. GPU and fans fail-closed (`hasReadings = false`) on hardware that doesn't expose the sensors, and the sidebar entry hides itself. Fan reads go through `SMCClient`, which caches per-key `keyInfo` (size/type are static), halving the SMC syscalls per read.
+- GPU + Fans + Wi-Fi (window tier): every 5 ticks (~5 s) — `lastGPUSampleTick` / `lastFansSampleTick` / `lastWiFiSampleTick`. GPU and fans fail-closed (`hasReadings = false`) on hardware that doesn't expose the sensors, and the sidebar entry hides itself. Fan reads go through `SMCClient`, which caches per-key `keyInfo` (size/type are static), halving the SMC syscalls per read.
 - Public IP: kicked from the actor as a detached `Task` when the cache is older than 10 min; `applyPublicIP(_:)` writes back through actor isolation.
 
-Long-window history: each "rate" metric (CPU, memory %, network in/out, disk read/write, temperature) is fed into a `MetricRings` bundle that keeps three rings — 60 samples @ 1 Hz (`minute`), 360 samples @ 10 s (`hour`), and 1440 samples @ 1 min (`day`) — using rolling-average downsampling. The hour/day linearized snapshots are cached and only rebuilt when their ring advances (every 10 / 60 ticks), so the per-tick history build only allocates the minute series. Because the cached arrays share storage across snapshots, the `Equatable` sparks (`AreaSpark` / `DualAreaSpark` / `CenteredSpark` + `.equatable()` at call sites) skip Swift Charts re-rendering on ticks where the series didn't change. Panes use a `HistoryRangePicker` to switch the rendered series.
+Long-window history: each "rate" metric (CPU, memory %, network in/out, disk read/write, temperature) is fed into a `MetricRings` bundle that keeps three rings — 60 samples @ 1 Hz (`minute`), 360 samples @ 10 s (`hour`), and 1440 samples @ 1 min (`day`) — using rolling-average downsampling. The hour/day linearized snapshots are cached and only rebuilt when their ring advances (every 10 / 60 ticks), so the per-tick history build only allocates the minute series. Because the cached arrays share storage across snapshots, the `Equatable` sparks (`AreaSpark` / `DualAreaSpark` / `CenteredSpark` + `.equatable()` at call sites) skip re-rendering on ticks where the series didn't change. Sparks are plain `Shape` paths (`SparkShape`), not Swift Charts: Charts rebuilt ~120 marks per spark per second and cost 3–7% CPU / ~100 MB with the window open, vs ~1.7% / 38 MB with paths. Panes use a `HistoryRangePicker` to switch the rendered series.
 
 When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(forceDetailRefresh: true)` so the dropdown shows fresh numbers immediately instead of waiting up to 30 s for the next battery / temperature / volume-stats refresh.
 
@@ -165,7 +167,7 @@ Typical shutdown takes ~10–50 ms (SIGTERM resolves it); hard cap is 500 ms.
 
 CPU/GPU/SOC temperatures are read via the private `IOHIDEventSystemClient` API. Public alternatives don't exist on Apple Silicon: SMC keys are largely deprecated, and `ProcessInfo.thermalState` only exposes a coarse pressure level (nominal/fair/serious/critical), not absolute Celsius readings.
 
-`TemperatureMonitor` declares the symbols via `@_silgen_name` (no public header), creates a single `IOHIDEventSystemClient` at init, sets a matching dictionary for `PrimaryUsagePage = 0xff00 / PrimaryUsage = 0x0005` (Apple vendor temperature sensors), and copies the matching services array once. Each service is classified once at init by name substring (e.g. `pACC`, `eACC`, `PMP`, `SOC` → CPU; `GPU` → GPU). The classification is stored as an aligned `[Category]` array, so the per-tick path is a tight `for i in 0..<services.count` loop with O(1) lookups and no Swift heap allocations beyond the (immediately released) per-event CFType.
+`TemperatureMonitor` declares the symbols via `@_silgen_name` (no public header), creates a single `IOHIDEventSystemClient` at init, sets a matching dictionary for `PrimaryUsagePage = 0xff00 / PrimaryUsage = 0x0005` (Apple vendor temperature sensors), and copies the matching services array once. Each service is classified once at init by name substring (e.g. `tdie` (M4), `pACC`, `eACC`, `PMP`, `SOC` → CPU; `GPU` → GPU; `tcal` is a calibration constant and is dropped). When any CPU/GPU sensor is identified, only those are kept: each `IOHIDServiceClientCopyEvent` is a blocking driver round trip (~0.3–2 ms), so reading all 47 sensors on an M4 took ~45 ms vs ~17 ms for the 24 die sensors. The classification is stored as an aligned `[Category]` array, so the per-tick path is a tight `for i in 0..<services.count` loop with O(1) lookups and no Swift heap allocations beyond the (immediately released) per-event CFType.
 
 The sample produces aggregate `cpuCelsius`, `gpuCelsius`, `maxCelsius`, `sensorCount` — not a per-sensor list, so views never trigger array allocation per refresh.
 
@@ -196,6 +198,10 @@ The `OpaquePointer` cast is load-bearing. Keep both the single shared heap buffe
 ### `proc_listpids` slack
 
 The two-call pattern (probe size, then fetch) races against process creation. A PID spawning between the calls can cause a buffer overflow. Always allocate extra slack bytes (see `listPids()` — uses `probe + 1024 * sizeof(pid)` slack) and clamp the result to the buffer capacity.
+
+### Task CPU time is in mach ticks
+
+`pti_total_user` / `pti_total_system` from `proc_taskallinfo` are mach absolute-time ticks, not nanoseconds. On Apple Silicon the timebase is 125/3, so treating them as ns under-reports per-process CPU by ~42x. `ProcessMonitor` scales deltas by `mach_timebase_info` (cached once). PIDs where `proc_pidinfo` fails with `EPERM` (root-owned, ~40%) are skipped via `deniedPids`, reset every 30 samples to cover PID reuse.
 
 ### ProcessIdentity as the cache key
 

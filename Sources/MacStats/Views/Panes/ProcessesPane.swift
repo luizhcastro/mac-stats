@@ -58,11 +58,15 @@ struct ProcessesPane: View {
             }
         }
         .onAppear {
+            stats.retainFullProcessList()
             stats.retainNetworkProcessSampling()
             lastSeenGeneration = stats.snapshot.processGeneration
             rebuild()
         }
-        .onDisappear { stats.releaseNetworkProcessSampling() }
+        .onDisappear {
+            stats.releaseFullProcessList()
+            stats.releaseNetworkProcessSampling()
+        }
         .onReceive(stats.$snapshot) { snap in
             guard snap.processGeneration != lastSeenGeneration else { return }
             lastSeenGeneration = snap.processGeneration
