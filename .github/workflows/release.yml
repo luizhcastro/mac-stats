@@ -16,6 +16,9 @@ jobs:
   release:
     name: Build, Sign, Notarize, Release
     runs-on: macos-26
+    defaults:
+      run:
+        working-directory: apps/macos
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -136,7 +139,7 @@ jobs:
           name: "MacStats ${{ github.ref_name }}"
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: MacStats-*.dmg
+          files: apps/macos/MacStats-*.dmg
           draft: false
           prerelease: false
           make_latest: true

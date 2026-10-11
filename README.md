@@ -38,9 +38,12 @@ Requires macOS 13+ on Apple Silicon.
 ## Build from source
 
 ```bash
+cd apps/macos
 ./Scripts/run.sh             # debug build + launch
 ./Scripts/bundle.sh release  # production .app under .build/
 ```
+
+The repo is a small monorepo: `apps/macos` is the app, `apps/web` the landing page (`npm install && npm run dev`).
 
 Needs the Swift 6.3 toolchain (Xcode 15+). No package dependencies.
 

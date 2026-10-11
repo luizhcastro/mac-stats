@@ -26,6 +26,8 @@ Native macOS menu bar system monitor. Inspired by iStat Menus. Personal use, not
 
 ## Build / run
 
+Monorepo: the Swift app lives in `apps/macos/`, the landing page in `apps/web/` (Vite + React + Tailwind). Run the commands below from `apps/macos/`.
+
 ```bash
 ./Scripts/run.sh           # debug bundle + launch
 ./Scripts/bundle.sh release  # release .app
@@ -40,7 +42,7 @@ When iterating, kill before rebuild (`pkill -x MacStats`). If a change looks lik
 ## Architecture
 
 ```
-Sources/MacStats/
+apps/macos/Sources/MacStats/
 ├── MacStatsApp.swift            # @main, AppDelegate; spawns StatusBarController + MainWindowController; pkill orphan nettops on launch/quit
 ├── StatusBarController.swift    # owns N NSStatusItems (one per metric) + shared NSPopover; retains detail + nettop sampling while popover is shown
 ├── MainWindowController.swift   # NSWindowController hosting MainWindowView; holds detail + window-detail tiers while visible (occlusion-aware)
@@ -75,10 +77,12 @@ Sources/MacStats/
         ├── MetricPanes.swift       # CPU / GPU / Memory / Disk / Network / Battery / Temperature / Fans + LeaderList
         └── ProcessesPane.swift     # full filterable / sortable process table
 
-Resources/
+apps/macos/Resources/
 └── AppIcon.icns                # built via iconutil from design_handoff_macstats_logo/
 
 design_handoff_macstats_logo/   # canonical icon source (SVG + sized PNGs + README)
+
+apps/web/                       # landing page (Vite + React + TypeScript + Tailwind v4)
 ```
 
 ### Data flow
@@ -235,7 +239,7 @@ SwiftUI `MenuBarExtra` was tried first. It collapses complex label layouts: only
 
 - Canonical source: `design_handoff_macstats_logo/assets/macstats-icon.svg` (hand-authored, see the folder's README for design tokens / geometry).
 - Sized PNGs are in `design_handoff_macstats_logo/assets/png/`.
-- Compiled `.icns` at `Resources/AppIcon.icns`. Rebuild it from the PNGs via `iconutil -c icns MacStats.iconset` (see the handoff README for the exact `.iconset` layout).
+- Compiled `.icns` at `apps/macos/Resources/AppIcon.icns`. Rebuild it from the PNGs via `iconutil -c icns MacStats.iconset` (see the handoff README for the exact `.iconset` layout).
 - `bundle.sh` copies the `.icns` into `Contents/Resources/AppIcon.icns` and sets `CFBundleIconFile = AppIcon`.
 - The dropdown header in `MenuBarContentView` loads the same icon via `NSImage(named: "AppIcon")`.
 - No mono/template variant for the menu bar; the colored bar glyphs come from SF Symbols in `SingleMetricLabel`.
