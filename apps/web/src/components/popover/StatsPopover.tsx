@@ -40,7 +40,7 @@ export function StatsPopover({ stats, position, tab, onTabChange, visible, onTog
           <div className="font-bold">MacStats</div>
           <Caption>System monitor</Caption>
         </div>
-        <a href={`#${MAIN_WINDOW_ID}`} title="Open main window" aria-label="Open main window" className="rounded p-0.5 text-secondary hover:text-label">
+        <a href={`#${MAIN_WINDOW_ID}`} data-umami-event="Open main window" title="Open main window" aria-label="Open main window" className="rounded p-0.5 text-secondary hover:text-label">
           <Icon name="macwindow" className="size-[15px]" />
         </a>
       </header>

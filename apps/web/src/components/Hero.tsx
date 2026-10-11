@@ -19,7 +19,7 @@ export function Hero() {
 
       <div className="flex flex-wrap items-center gap-6">
         <DownloadButton />
-        <a href={REPO_URL} className="text-secondary underline underline-offset-4 hover:text-label">
+        <a href={REPO_URL} data-umami-event="View source" data-umami-event-source="hero" className="text-secondary underline underline-offset-4 hover:text-label">
           View source on GitHub
         </a>
       </div>

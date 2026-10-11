@@ -4,10 +4,10 @@ export function Footer() {
   return (
     <footer className="mx-auto flex max-w-[1080px] flex-wrap gap-6 px-5 pt-10 pb-12 text-[0.9rem] text-secondary">
       <span className="mr-auto">MacStats is MIT licensed.</span>
-      <a href={REPO_URL} className="underline">
+      <a href={REPO_URL} data-umami-event="View source" data-umami-event-source="footer" className="underline">
         GitHub
       </a>
-      <a href={ISSUES_URL} className="underline">
+      <a href={ISSUES_URL} data-umami-event="Report an issue" className="underline">
         Report an issue
       </a>
     </footer>
