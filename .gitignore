@@ -6,3 +6,6 @@ Package.resolved
 .DS_Store
 node_modules/
 dist/
+
+# Icon design source, kept locally only
+design_handoff_macstats_logo/

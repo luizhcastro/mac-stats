@@ -78,9 +78,8 @@ apps/macos/Sources/MacStats/
         └── ProcessesPane.swift     # full filterable / sortable process table
 
 apps/macos/Resources/
-└── AppIcon.icns                # built via iconutil from design_handoff_macstats_logo/
+└── AppIcon.icns                # compiled app icon (source lives outside the repo)
 
-design_handoff_macstats_logo/   # canonical icon source (SVG + sized PNGs + README)
 
 apps/web/                       # landing page (Vite + React + TypeScript + Tailwind v4)
 ```
@@ -223,9 +222,9 @@ SwiftUI `MenuBarExtra` was tried first. It collapses complex label layouts: only
 
 ## App icon
 
-- Canonical source: `design_handoff_macstats_logo/assets/macstats-icon.svg` (hand-authored, see the folder's README for design tokens / geometry).
-- Sized PNGs are in `design_handoff_macstats_logo/assets/png/`.
-- Compiled `.icns` at `apps/macos/Resources/AppIcon.icns`. Rebuild it from the PNGs via `iconutil -c icns MacStats.iconset` (see the handoff README for the exact `.iconset` layout).
+- Source (hand-authored SVG + sized PNGs) is kept locally in `design_handoff_macstats_logo/`, gitignored, not in the repo.
+- Compiled `.icns` at `apps/macos/Resources/AppIcon.icns`. Rebuild it from the sized PNGs via `iconutil -c icns MacStats.iconset`.
+- The landing page / README use `apps/web/public/icon.png`.
 - `bundle.sh` copies the `.icns` into `Contents/Resources/AppIcon.icns` and sets `CFBundleIconFile = AppIcon`.
 - The dropdown header in `MenuBarContentView` loads the same icon via `NSImage(named: "AppIcon")`.
 - No mono/template variant for the menu bar; the colored bar glyphs come from SF Symbols in `SingleMetricLabel`.
