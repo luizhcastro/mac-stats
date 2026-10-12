@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./design_handoff_macstats_logo/assets/png/macstats-256.png" width="128" height="128" alt="MacStats" />
+  <img src="./apps/web/public/icon.png" width="128" height="128" alt="MacStats" />
 </p>
 
 <h1 align="center">MacStats</h1>
@@ -66,7 +66,7 @@ Architecture notes, the sampling design and the tricky Darwin APIs live in [`CLA
 
 ## Credits
 
-Icon hand-authored in `design_handoff_macstats_logo/`. Inspired by [iStat Menus](https://bjango.com/mac/istatmenus/).
+Icon hand-authored. Inspired by [iStat Menus](https://bjango.com/mac/istatmenus/).
 
 ## License
 
