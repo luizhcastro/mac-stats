@@ -75,7 +75,7 @@ apps/macos/Sources/MacStats/
     ├── TopProcessesView.swift      # tabbed top processes (CPU/RAM/Disk/Network/Energy)
     ├── MixerView.swift             # per-app volume rows (popover "Sound" section) + SoundPane (sidebar)
     ├── MainWindowView.swift        # sidebar nav (Overview / Hardware / Activity)
-    ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, SparkShape, AreaSpark, DualAreaSpark, CenteredSpark, ScaleHelper
+    ├── PaneKit.swift               # shared pane primitives: Motion (spring + reveal tokens), SlidingSegmented, PaneHeader, MetricCard, SparkShape, AreaSpark, DualAreaSpark, CenteredSpark, ScaleHelper
     └── Panes/
         ├── DashboardPane.swift     # at-a-glance card grid (cpu, mem, network, disk, battery, temperature)
         ├── MetricPanes.swift       # CPU / GPU / Memory / Disk / Network / Battery / Temperature / Fans + LeaderList
@@ -130,9 +130,13 @@ When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(for
 
 - **One `NSStatusItem` per metric** (CPU, Temperature, RAM, Disk, Network, plus `appIcon` — six total `BarMetric` cases; `appIcon` renders the bundled `AppIcon` image, falling back to an SF Symbol in debug builds where `bundle.sh` hasn't copied the `.icns`). Not a single item with a multi-slot label. This lets macOS hide items individually under width pressure instead of collapsing the whole group at once. Each item owns an `NSHostingView<SingleMetricLabel>`.
 - All items are **created once at launch** and toggled via `item.isVisible` when the user checks/unchecks a metric. Recreating items on every toggle turned out to be flaky (items occasionally failed to reappear).
-- Items share **one `NSPopover`** (`behavior = .transient`, no animation). Clicking any item's button opens the popover anchored to that button, and the clicked `BarMetric` is passed down as `MenuBarContentView.focus` so the Top Processes tab starts on that metric (temperature falls back to CPU — there is no temperature tab). Clicking a *different* item while the popover is open re-anchors it (close + reopen on the next runloop hop, with a retain held across the swap so `nettop` isn't killed and respawned).
+- Items share **one `NSPopover`** (`behavior = .transient`, native open/close animation). Clicking any item's button opens the popover anchored to that button, and the clicked `BarMetric` is passed down as `MenuBarContentView.focus` so the Top Processes tab starts on that metric (temperature falls back to CPU — there is no temperature tab). Clicking a *different* item while the popover is open re-anchors it (close + reopen on the next runloop hop, with a retain held across the swap so `nettop` isn't killed and respawned; the close skips its animation via a temporary `animates = false` so it finishes before the reopen, which still animates).
 - Popover closes on outside click via a **global `NSEvent.addGlobalMonitorForEvents`** monitor for `leftMouseDown`/`rightMouseDown`. `.transient` alone is unreliable, especially when items get hidden.
 - Menu bar label uses `Font.system(size: 9, weight: .bold).monospacedDigit()` with compact integer-only suffixes (`99%`, `11G`, `512K`, `3M`, `65°`) and fixed-width frames per metric.
+
+### Motion
+
+Restraint first (Emil Kowalski's gate: frequency, purpose, <300 ms, never on data being read). Every animation uses `Motion.spring(reduceMotion:)` (critically damped, response 0.3; Reduce Motion → 0.15 s ease-out fade) and `Motion.reveal(reduceMotion:)` (fade + 4 pt drop; Reduce Motion → fade only). Animated today: popover open/close (native `NSPopover` animation from the menu bar arrow), section expand/collapse, top-process rows (keyed by process: tab switches and re-ranks slide rows, entries/exits fade), mixer rows reordering/entering/leaving, mute symbol `.replace`, the permission warning, and the selection pill of `SlidingSegmented` (`PaneKit.swift`; replaces the native `.segmented` Picker, which can't animate, in Top processes and `HistoryRangePicker`). Deliberately not animated: live number text (1 Hz data), sparklines, main-window sidebar switches.
 
 ### Dock icon
 

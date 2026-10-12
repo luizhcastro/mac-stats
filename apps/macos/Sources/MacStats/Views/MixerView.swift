@@ -5,6 +5,7 @@ import AppKit
 @available(macOS 14.4, *)
 struct MixerView: View {
     @ObservedObject private var mixer = AudioMixer.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -15,6 +16,7 @@ struct MixerView: View {
             }
             ForEach(mixer.apps) { app in
                 row(app)
+                    .transition(.opacity)
             }
             if mixer.tapFailed {
                 Text("MacStats needs System Audio Recording access (System Settings → Privacy & Security) to change app volumes.")
@@ -22,8 +24,13 @@ struct MixerView: View {
                     .foregroundStyle(.orange)
                     .lineLimit(nil)  // the popover forces one line; this one is a sentence
                     .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
             }
         }
+        // Rows slide to their new place when an app starts playing (it moves
+        // to the top) instead of teleporting; arrivals/departures fade.
+        .animation(Motion.spring(reduceMotion: reduceMotion), value: mixer.apps.map(\.id))
+        .animation(Motion.spring(reduceMotion: reduceMotion), value: mixer.tapFailed)
         .onAppear { mixer.retainView() }
         .onDisappear { mixer.releaseView() }
     }
@@ -46,6 +53,7 @@ struct MixerView: View {
                 mixer.setMuted(!app.muted, for: app.id)
             } label: {
                 Image(systemName: app.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .contentTransition(.symbolEffect(.replace))
                     .frame(width: 18)
             }
             .buttonStyle(.borderless)

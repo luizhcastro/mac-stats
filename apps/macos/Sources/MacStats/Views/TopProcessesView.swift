@@ -35,13 +35,7 @@ struct TopProcessesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("", selection: $tab) {
-                ForEach(Metric.allCases) { m in
-                    Text(m.rawValue).tag(m)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            SlidingSegmented(options: Metric.allCases, selection: $tab, label: \.rawValue)
             .onAppear { stats.setEnergyTrackingEnabled(tab == .energy) }
             .onChange(of: tab) { newValue in
                 stats.setEnergyTrackingEnabled(newValue == .energy)
@@ -81,19 +75,32 @@ struct TopProcessesView: View {
 
 private struct RowsList: View, Equatable {
     let rows: [TopProcessesView.Row]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    nonisolated static func == (lhs: RowsList, rhs: RowsList) -> Bool { lhs.rows == rhs.rows }
 
     var body: some View {
-        ForEach(rows) { r in
-            HStack {
-                Text(r.name)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer()
-                Text(r.value)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+        // Rows are keyed by process, so switching tabs or a re-rank slides a
+        // process to its new place; processes entering/leaving the top fade.
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(rows) { r in
+                row(r)
+                    .transition(.opacity)
             }
-            .font(.caption)
         }
+        .animation(Motion.spring(reduceMotion: reduceMotion), value: rows.map(\.id))
+    }
+
+    private func row(_ r: TopProcessesView.Row) -> some View {
+        HStack {
+            Text(r.name)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer()
+            Text(r.value)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption)
     }
 }

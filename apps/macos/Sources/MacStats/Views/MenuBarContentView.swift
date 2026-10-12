@@ -320,6 +320,7 @@ struct PopoverSection<Header: View, Detail: View>: View {
     static var chevronWidth: CGFloat { 14 }
 
     @AppStorage private var expanded: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let header: Header
     private let detail: Detail
 
@@ -333,7 +334,7 @@ struct PopoverSection<Header: View, Detail: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button {
-                expanded.toggle()
+                withAnimation(Motion.spring(reduceMotion: reduceMotion)) { expanded.toggle() }
             } label: {
                 HStack(spacing: 0) {
                     Image(systemName: "chevron.right")
@@ -349,6 +350,7 @@ struct PopoverSection<Header: View, Detail: View>: View {
             if expanded {
                 detail
                     .padding(.leading, Self.chevronWidth)
+                    .transition(Motion.reveal(reduceMotion: reduceMotion))
             }
         }
     }
