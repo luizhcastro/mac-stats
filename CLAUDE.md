@@ -53,6 +53,7 @@ apps/macos/Sources/MacStats/
 ├── ProcessKill.swift            # confirm-and-kill helper used by leader rows
 ├── UpdateChecker.swift          # Sparkle SPUStandardUpdaterController wrapper; gentle-reminder banner in popover + Settings card
 ├── Analytics.swift              # opt-out Umami pings (heartbeat / popover_open / window_open), max 1 per name per day
+├── AudioMixer.swift             # per-app volume (macOS 14.4+): CoreAudio process tap + private aggregate + gain IOProc
 ├── Monitors/                    # stateless-ish samplers, one per hardware domain
 │   ├── CPUMonitor.swift         # aggregate host_statistics + per-core host_processor_info + getloadavg
 │   ├── MemoryMonitor.swift      # host_statistics64 HOST_VM_INFO64 + vm.swapusage + swap-in/out rates
@@ -72,6 +73,7 @@ apps/macos/Sources/MacStats/
     ├── MenuBarContentView.swift    # dropdown / popover content (header + sections + prefs + quit)
     ├── MenuBarPrefsView.swift      # 3-col grid of checkboxes for which metrics show in bar
     ├── TopProcessesView.swift      # tabbed top processes (CPU/RAM/Disk/Network/Energy)
+    ├── MixerView.swift             # per-app volume rows (popover "Sound" section) + SoundPane (sidebar)
     ├── MainWindowView.swift        # sidebar nav (Overview / Hardware / Activity)
     ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, SparkShape, AreaSpark, DualAreaSpark, CenteredSpark, ScaleHelper
     └── Panes/
@@ -182,6 +184,12 @@ Lifecycle is **refcount-gated** via `retainNetworkProcessSampling()` / `releaseN
 Typical shutdown takes ~10–50 ms (SIGTERM resolves it); hard cap is 500 ms.
 
 `AppDelegate.killOrphanNettops()` runs on both `applicationDidFinishLaunching` and `applicationWillTerminate` — it `pkill -f`s any leftover nettop processes matching our exact arguments, covering the rare case where MacStats was killed with SIGKILL and couldn't run its own teardown.
+
+### Per-app volume via process taps
+
+`AudioMixer` (macOS 14.4+, started in `applicationDidFinishLaunching`) groups CoreAudio process objects (`kAudioHardwarePropertyProcessObjectList`) by owning app: the process itself if it's a regular app (so a Steam- or Terminal-launched game isn't filed under its launcher), else `responsibility_get_pid_responsible_for_pid` (private, `@_silgen_name`), then a parent-pid walk until a regular `NSRunningApplication`; then `daemonOwners` maps Apple daemons that play for an app (`avconferenced`/`callservicesd` → FaceTime, `assistantd`/`corespeechd` → Siri, `usernoted` → Notifications; `systemsoundserverd` mixes every app's alerts with no attribution → one "System Sounds" row); then a helper inside an `.app` → the outermost bundle; else `proc:<executable>` (`afplay`, `say`). Like the Windows mixer, a Dock app gets a row once it has an audio session (is in the HAL process list), even while silent; apps that never opened audio (Finder, terminals) don't. Daemons / CLI tools only show while playing or with a saved setting. Playing rows sort first. An app at 100% / unmuted is untouched. Otherwise, while it's producing output, a `TapEngine` runs: `CATapDescription(stereoMixdownOfProcesses:)` with `.mutedWhenTapped` + a private aggregate (main sub-device = the device the app is actually playing to, from `kAudioProcessPropertyDevices` output scope, falling back to the default output; tap in `TapList`) + an IOProc that copies the tap (last input buffer) to the output scaled by the gain. HAL listeners on the process list, each process's `IsRunningOutput` / `IsRunning` / `Devices`, and the default output device (which drops all engines so they rebuild on the new UID). Notifications alone miss transitions (Chromium's audio service often never fires), so `MixerView` also retains a 1 s poll while it's on screen (`retainView` / `releaseView`). Teardown calls `AudioDeviceStop` synchronously (hands audio back instantly) and destroys IOProc / aggregate / tap on a background queue (can block on a wedged HAL). Settings persist per bundle id in `mixer.settings`. Needs `NSAudioCaptureUsageDescription` (in `bundle.sh`); without the System Audio Recording permission the tap delivers silence.
+
+Per-tab browser volume is **not** possible this way: Chromium browsers (Chrome, Dia, Arc, Electron apps) play every tab through one `audio.mojom.AudioService` helper, so CoreAudio sees one already-mixed process. Per-tab would need a browser extension (`tabCapture` + `GainNode`) talking to the app over Native Messaging.
 
 ### Temperature via private IOHID
 

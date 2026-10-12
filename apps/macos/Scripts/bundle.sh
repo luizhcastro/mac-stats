@@ -45,6 +45,7 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <key>SUEnableAutomaticChecks</key><true/>
     <key>MacStatsUmamiHost</key><string>${UMAMI_HOST:-}</string>
     <key>MacStatsUmamiWebsiteID</key><string>${UMAMI_WEBSITE_ID:-}</string>
+    <key>NSAudioCaptureUsageDescription</key><string>MacStats routes each app's audio through itself so you can change that app's volume. Nothing is recorded or leaves your Mac.</string>
     <key>NSLocationUsageDescription</key><string>MacStats reads the current Wi-Fi SSID and signal information so it can show the network you are connected to.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>MacStats reads the current Wi-Fi SSID and signal information so it can show the network you are connected to.</string>
 </dict>

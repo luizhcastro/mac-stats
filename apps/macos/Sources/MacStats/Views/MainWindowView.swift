@@ -11,6 +11,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
     case battery
     case temperature
     case fans
+    case sound
     case processes
     case settings
 
@@ -27,6 +28,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         case .battery:     return "Battery"
         case .temperature: return "Temperature"
         case .fans:        return "Fans"
+        case .sound:       return "Sound"
         case .processes:   return "Processes"
         case .settings:    return "Settings"
         }
@@ -43,6 +45,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         case .battery:     return "battery.100"
         case .temperature: return "thermometer"
         case .fans:        return "fanblades"
+        case .sound:       return "speaker.wave.2"
         case .processes:   return "list.bullet.rectangle"
         case .settings:    return "gearshape"
         }
@@ -100,6 +103,9 @@ struct MainWindowView: View {
                 }
                 Section("Activity") {
                     sidebarRow(.processes)
+                    if #available(macOS 14.4, *) {
+                        sidebarRow(.sound)
+                    }
                 }
                 Section {
                     sidebarRow(.settings)
@@ -144,6 +150,8 @@ struct MainWindowView: View {
         case .temperature: TemperaturePane(stats: stats)
         case .fans:      FansPane(stats: stats)
         case .processes: ProcessesPane(stats: stats)
+        case .sound:
+            if #available(macOS 14.4, *) { SoundPane() }
         case .settings:  SettingsPane(prefs: prefs)
         }
     }

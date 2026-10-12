@@ -30,6 +30,14 @@ struct MenuBarContentView: View {
                 Divider()
                 batterySection
             }
+            if #available(macOS 14.4, *) {
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Sound", systemImage: "speaker.wave.2")
+                        .font(.headline)
+                    MixerView()
+                }
+            }
             Divider()
             TopProcessesView(stats: stats, initialTab: .init(focus))
             Divider()
