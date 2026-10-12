@@ -102,7 +102,8 @@ export function RateLabel({ direction, color, value }: { direction: 'down' | 'up
       <span style={{ color }}>
         <Icon name={direction === 'down' ? 'arrowDown' : 'arrowUp'} className="size-3.5" />
       </span>
-      {value}
+      {/* widest form is "999.9 KB/s"; reserve it so unit/digit changes don't shift the row */}
+      <span className="min-w-[10ch]">{value}</span>
     </span>
   )
 }

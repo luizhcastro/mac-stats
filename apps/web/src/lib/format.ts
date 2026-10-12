@@ -15,9 +15,10 @@ export function formatCompactRate(mbPerSec: number): string {
   return '0 K/s'
 }
 
-/** Gigabytes → "10.46 GB" / "16 GB" / "598 MB", like `Fmt.bytes` (ByteCountFormatter drops trailing zeros) */
+/** Gigabytes → "10.40 GB" / "16 GB" / "598 MB". Fixed 2 decimals so live values keep a constant width */
 export function formatGB(gb: number): string {
-  return gb >= 1 ? `${Number(gb.toFixed(2))} GB` : `${(gb * 1000).toFixed(0)} MB`
+  if (gb < 1) return `${(gb * 1000).toFixed(0)} MB`
+  return Number.isInteger(gb) ? `${gb} GB` : `${gb.toFixed(2)} GB`
 }
 
 export function formatPercent(value: number, digits = 0): string {
