@@ -64,6 +64,32 @@ struct MixerView: View {
     }
 }
 
+/// Popover section: header counts what's playing, rows expand on demand.
+@available(macOS 14.4, *)
+struct SoundSection: View {
+    @ObservedObject private var mixer = AudioMixer.shared
+
+    var body: some View {
+        PopoverSection("sound", expandedByDefault: false) {
+            HStack {
+                Label("Sound", systemImage: "speaker.wave.2")
+                    .font(.headline)
+                    .fixedSize()
+                Spacer()
+                let playing = mixer.apps.filter(\.isPlaying).count
+                Text(playing == 0 ? "silent" : "\(playing) playing")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } detail: {
+            MixerView()
+        }
+        // Keep the 1 s poll alive while collapsed too, so the count is right.
+        .onAppear { mixer.retainView() }
+        .onDisappear { mixer.releaseView() }
+    }
+}
+
 @available(macOS 14.4, *)
 struct SoundPane: View {
     var body: some View {

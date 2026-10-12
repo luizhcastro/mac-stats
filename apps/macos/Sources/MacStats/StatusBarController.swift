@@ -139,12 +139,15 @@ final class StatusBarController {
         stats.retainDetailSampling()
         stats.retainNetworkProcessSampling()
         popover.delegate = popoverDelegate
-        popover.contentViewController = NSHostingController(
+        let host = NSHostingController(
             rootView: MenuBarContentView(stats: stats, prefs: prefs, focus: focus, openWindow: { [weak self] in
                 self?.closePopover()
                 self?.openWindow()
             })
         )
+        // Collapsing / expanding sections resizes the popover.
+        host.sizingOptions = .preferredContentSize
+        popover.contentViewController = host
         anchorButton = button
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.becomeKey()

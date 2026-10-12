@@ -70,7 +70,7 @@ apps/macos/Sources/MacStats/
 │   └── SamplingMath.swift       # shared delta / rate helpers (handles counter rollover)
 └── Views/
     ├── SingleMetricLabel.swift     # one metric in the menu bar; reads a MetricLabelModel that StatusBarController updates only when the text changes
-    ├── MenuBarContentView.swift    # dropdown / popover content (header + sections + prefs + quit)
+    ├── MenuBarContentView.swift    # dropdown / popover content (header + collapsible PopoverSections + quit); expanded state in `popover.expanded.<key>`, host uses `sizingOptions = .preferredContentSize` so toggling resizes the popover. Menu bar prefs live only in Settings.
     ├── MenuBarPrefsView.swift      # 3-col grid of checkboxes for which metrics show in bar
     ├── TopProcessesView.swift      # tabbed top processes (CPU/RAM/Disk/Network/Energy)
     ├── MixerView.swift             # per-app volume rows (popover "Sound" section) + SoundPane (sidebar)
