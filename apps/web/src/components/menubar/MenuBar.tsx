@@ -12,14 +12,19 @@ type MenuBarProps = {
   itemRef: (metric: BarMetric) => (el: HTMLButtonElement | null) => void
 }
 
+/** MB/s → integer-only "512K" / "3M", like `SingleMetricLabel.compactShort` */
+function compactRate(mbPerSec: number): string {
+  return mbPerSec >= 1 ? `${mbPerSec.toFixed(0)}M` : `${(mbPerSec * 1000).toFixed(0)}K`
+}
+
 export function MenuBar({ stats, visible, onItemClick, itemRef }: MenuBarProps) {
   // Slot widths come from SingleMetricLabel.swift so the values don't jitter
   const items = [
     { id: 'cpu', label: 'CPU usage', icon: 'cpu', value: `${stats.cpu.total.toFixed(0)}%`, width: 30 },
     { id: 'temperature', label: 'CPU temperature', icon: 'thermometer', value: `${stats.temperature.cpu.toFixed(0)}°`, width: 26 },
-    { id: 'ram', label: 'Memory in use', icon: 'memorychip', value: `${stats.memory.usedGB.toFixed(1)}G`, width: 32 },
-    { id: 'disk', label: 'Disk activity', icon: 'internaldrive', value: `${(stats.disk.read + stats.disk.write).toFixed(1)}M`, width: 36 },
-    { id: 'network', label: 'Network rate', icon: 'network', value: `${stats.network.in.toFixed(1)}M`, width: 36 },
+    { id: 'ram', label: 'Memory in use', icon: 'memorychip', value: `${stats.memory.usedGB.toFixed(0)}G`, width: 32 },
+    { id: 'disk', label: 'Disk activity', icon: 'internaldrive', value: compactRate(stats.disk.read + stats.disk.write), width: 36 },
+    { id: 'network', label: 'Network rate', icon: 'network', value: compactRate(stats.network.in + stats.network.out), width: 36 },
   ] as const
 
   return (
