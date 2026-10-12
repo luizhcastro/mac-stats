@@ -35,9 +35,6 @@ struct SingleMetricLabel: View {
             return "--°"
         case .ram:
             let gb = Double(snapshot.memory.usedBytes) / 1_073_741_824.0
-            if gb < 10 {
-                return String(format: "%.1fG", gb)
-            }
             return String(format: "%dG", Int(gb.rounded()))
         case .disk:
             return compactShort(snapshot.disk.readPerSec + snapshot.disk.writePerSec)
@@ -54,13 +51,9 @@ struct SingleMetricLabel: View {
             return String(format: "%.0fK", bps / 1024)
         }
         if bps < 1024 * 1024 * 1024 {
-            let mb = bps / 1024 / 1024
-            if mb < 10 { return String(format: "%.1fM", mb) }
-            return String(format: "%dM", Int(mb.rounded()))
+            return String(format: "%.0fM", bps / 1024 / 1024)
         }
-        let gb = bps / 1024 / 1024 / 1024
-        if gb < 10 { return String(format: "%.1fG", gb) }
-        return String(format: "%dG", Int(gb.rounded()))
+        return String(format: "%.0fG", bps / 1024 / 1024 / 1024)
     }
 
     private var width: CGFloat {
