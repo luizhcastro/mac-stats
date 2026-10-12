@@ -22,8 +22,14 @@ struct CPUPane: View {
                     AreaSpark(values: stats.history.cpu.values(for: range), max: 100, color: .blue, height: 160)
                         .equatable()
                 }
-                if !stats.cpu.cores.isEmpty {
-                    MetricCard(title: "Per-core Usage", icon: "rectangle.split.3x1") {
+                MetricCard(title: "Per-core Usage", icon: "rectangle.split.3x1") {
+                    if stats.cpu.cores.isEmpty {
+                        // Window-tier sample not in yet: the card holds its place
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.quaternary)
+                            .frame(height: 90)
+                            .skeleton()
+                    } else {
                         CoreBars(cores: stats.cpu.cores, height: 90)
                         CoreLegend(cores: stats.cpu.cores)
                             .padding(.top, 4)
@@ -317,8 +323,16 @@ struct NetworkPane: View {
                         WiFiInfoView(info: stats.wifi)
                     }
                 }
-                if !stats.network.interfaces.isEmpty {
-                    MetricCard(title: "Interfaces (\(stats.network.interfaces.count))", icon: "network") {
+                MetricCard(title: stats.network.interfaces.isEmpty ? "Interfaces" : "Interfaces (\(stats.network.interfaces.count))", icon: "network") {
+                    if stats.network.interfaces.isEmpty {
+                        // Window-tier sample not in yet
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(0..<2, id: \.self) { _ in
+                                StatRow(label: "en0 · Wi-Fi", value: "192.168.0.100")
+                            }
+                        }
+                        .skeleton()
+                    } else {
                         VStack(spacing: 10) {
                             ForEach(stats.network.interfaces) { iface in
                                 InterfaceRow(iface: iface)
@@ -991,6 +1005,19 @@ struct LeaderList: View {
     let rows: [LeaderRow]
 
     var body: some View {
+        if rows.isEmpty {
+            // First process sample not in yet: same rows, redacted
+            list(Self.placeholderRows).skeleton()
+        } else {
+            list(rows)
+        }
+    }
+
+    private static let placeholderRows = (0..<8).map {
+        LeaderRow(id: "skeleton-\($0)", pid: 10000, name: Skeleton.name($0), value: "000.0 MB")
+    }
+
+    private func list(_ rows: [LeaderRow]) -> some View {
         VStack(spacing: 0) {
             ForEach(rows) { r in
                 HStack {

@@ -192,6 +192,41 @@ struct HistoryRangePicker: View {
     }
 }
 
+/// Loading placeholder for content whose first sample hasn't landed yet (process
+/// lists, per-core bars, interfaces). Keeps the real layout and lets SwiftUI's
+/// native `.placeholder` redaction draw the text as rounded grey bars, with a
+/// slow opacity pulse (static under Reduce Motion).
+///
+/// ponytail: "empty = loading" is the signal at every call site. Those lists are
+/// never empty on a working Mac (top-K always has K processes, every Mac has
+/// cores and interfaces), so no separate loaded flag is threaded through.
+struct Skeleton: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dimmed = false
+
+    func body(content: Content) -> some View {
+        content
+            .redacted(reason: .placeholder)
+            .opacity(dimmed ? 0.45 : 1)
+            .allowsHitTesting(false)
+            .accessibilityLabel("Loading")
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { dimmed = true }
+            }
+    }
+
+    /// Process-like names of varying length, so the grey bars don't all match.
+    static func name(_ index: Int) -> String {
+        ["kernel_task", "WindowServer", "Google Chrome Helper", "Finder", "Spotify Helper",
+         "mds_stores", "Xcode", "Safari Web Content", "launchd", "coreaudiod"][index % 10]
+    }
+}
+
+extension View {
+    func skeleton() -> some View { modifier(Skeleton()) }
+}
+
 /// Segmented control whose blue selection pill slides to the tapped segment.
 /// The native `.segmented` Picker jumps; this keeps its macOS 26 look (capsule
 /// track, accent pill, white label) and adds the motion.

@@ -17,6 +17,11 @@ struct ProcessesPane: View {
 
     private static let rowHeight: CGFloat = 26
 
+    private static let placeholderRows = (0..<14).map {
+        ProcessRow(pid: Int32(-1 - $0), name: Skeleton.name($0), cpuPercent: 0, memoryBytes: 0,
+                   diskRead: 0, diskWrite: 0, netIn: 0, netOut: 0)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             PaneHeader(
@@ -35,6 +40,18 @@ struct ProcessesPane: View {
             Divider()
 
             ScrollView {
+                if rows.isEmpty && query.isEmpty {
+                    // Full list is only collected while this pane is open; the
+                    // first sample lands a moment after it appears.
+                    LazyVStack(spacing: 0) {
+                        ForEach(Self.placeholderRows) { row in
+                            ProcessRowView(row: row, isSelected: false)
+                                .frame(height: Self.rowHeight)
+                                .padding(.horizontal, 24)
+                        }
+                    }
+                    .skeleton()
+                }
                 LazyVStack(spacing: 0) {
                     ForEach(rows) { row in
                         ProcessRowView(row: row, isSelected: selection == row.pid)

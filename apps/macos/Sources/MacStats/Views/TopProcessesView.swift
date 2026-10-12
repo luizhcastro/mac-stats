@@ -3,6 +3,7 @@ import SwiftUI
 struct TopProcessesView: View {
     @ObservedObject var stats: SystemStats
     @State private var tab: Metric
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(stats: SystemStats, initialTab: Metric = .cpu) {
         self.stats = stats
@@ -42,9 +43,27 @@ struct TopProcessesView: View {
             }
             .onDisappear { stats.setEnergyTrackingEnabled(false) }
 
-            RowsList(rows: rows(8))
-                .equatable()
+            // Empty until the first process sample after opening (and Energy /
+            // Net only start measuring once their tab is picked): skeleton rows,
+            // cross-faded into the real ones.
+            let current = rows(8)
+            Group {
+                if current.isEmpty {
+                    RowsList(rows: Self.placeholderRows)
+                        .skeleton()
+                        .transition(.opacity)
+                } else {
+                    RowsList(rows: current)
+                        .equatable()
+                        .transition(.opacity)
+                }
+            }
+            .animation(Motion.spring(reduceMotion: reduceMotion), value: current.isEmpty)
         }
+    }
+
+    private static let placeholderRows = (0..<8).map {
+        Row(id: "skeleton-\($0)", name: Skeleton.name($0), value: "00.00%")
     }
 
     private func rows(_ n: Int) -> [Row] {
