@@ -13,6 +13,7 @@ export type SidebarSection =
   | 'temperature'
   | 'fans'
   | 'processes'
+  | 'sound'
   | 'settings'
 
 type Item = { id: SidebarSection; title: string; icon: IconName }
@@ -32,7 +33,13 @@ const GROUPS: { heading?: string; items: Item[] }[] = [
       { id: 'fans', title: 'Fans', icon: 'fan' },
     ],
   },
-  { heading: 'Activity', items: [{ id: 'processes', title: 'Processes', icon: 'list' }] },
+  {
+    heading: 'Activity',
+    items: [
+      { id: 'processes', title: 'Processes', icon: 'list' },
+      { id: 'sound', title: 'Sound', icon: 'speaker' },
+    ],
+  },
   { items: [{ id: 'settings', title: 'Settings', icon: 'gear' }] },
 ]
 

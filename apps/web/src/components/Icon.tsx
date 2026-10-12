@@ -128,6 +128,13 @@ const PATHS = {
   ),
   arrowDown: <path d="M8 2.5v11M3.5 9 8 13.5 12.5 9" />,
   arrowUp: <path d="M8 13.5v-11M3.5 7 8 2.5 12.5 7" />,
+  chevron: <path d="m6 3.5 4.5 4.5L6 12.5" />,
+  speaker: (
+    <>
+      <path d="M2 6h2.5L8 3v10L4.5 10H2Z" />
+      <path d="M10.5 5.8a3 3 0 0 1 0 4.4M12.4 4a5.5 5.5 0 0 1 0 8" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>
 
 export type IconName = keyof typeof PATHS

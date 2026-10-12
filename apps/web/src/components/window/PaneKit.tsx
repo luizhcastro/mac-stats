@@ -4,6 +4,7 @@ import { formatProcessValue, topProcesses } from '../../lib/format'
 import { HISTORY_RANGES, type HistoryRange } from '../../lib/history'
 import type { ProcessTab } from '../../lib/metrics'
 import { Icon, type IconName } from '../Icon'
+import { Segmented } from '../ui/Segmented'
 
 /** Shared building blocks for the window panes, mirroring PaneKit.swift */
 
@@ -119,24 +120,9 @@ export function StatRow({ label, value }: { label: string; value: string }) {
 
 type RangePickerProps = { value: HistoryRange; onChange: (range: HistoryRange) => void }
 
-/** 1m / 1h / 24h segmented control, 160pt wide like HistoryRangePicker */
+/** 1m / 1h / 24h sliding segmented control, 160pt wide like HistoryRangePicker */
 export function RangePicker({ value, onChange }: RangePickerProps) {
-  return (
-    <div role="tablist" className="grid w-40 grid-cols-3 rounded-lg bg-white/8 p-0.5 text-xs">
-      {HISTORY_RANGES.map((range) => (
-        <button
-          key={range.id}
-          type="button"
-          role="tab"
-          aria-selected={range.id === value}
-          onClick={() => onChange(range.id)}
-          className="cursor-pointer rounded-md py-0.5 aria-selected:bg-white/20 aria-selected:shadow-sm"
-        >
-          {range.label}
-        </button>
-      ))}
-    </div>
-  )
+  return <Segmented options={HISTORY_RANGES} value={value} onChange={onChange} className="w-40 text-xs" />
 }
 
 export function rangeLabel(range: HistoryRange): string {

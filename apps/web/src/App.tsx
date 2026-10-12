@@ -8,11 +8,13 @@ import { Install } from './components/content/Install'
 import { MainWindow } from './components/window/MainWindow'
 import { useLiveStats } from './hooks/useLiveStats'
 import { BAR_METRICS, type BarMetric } from './lib/metrics'
+import { useMixer } from './lib/mixer'
 
 export function App() {
   // Shared by the menu bar replica, its dropdown and the main window replica,
   // so all three show the same numbers and the same menu bar selection.
   const stats = useLiveStats()
+  const mixer = useMixer()
   const [visibleMetrics, setVisibleMetrics] = useState(() => new Set(BAR_METRICS.map((m) => m.id)))
 
   function toggleMetric(metric: BarMetric) {
@@ -26,8 +28,8 @@ export function App() {
 
   return (
     <>
-      <Desktop stats={stats} visible={visibleMetrics} onToggleMetric={toggleMetric} />
-      <MainWindow stats={stats} visible={visibleMetrics} onToggleMetric={toggleMetric} />
+      <Desktop stats={stats} mixer={mixer} visible={visibleMetrics} />
+      <MainWindow stats={stats} mixer={mixer} visible={visibleMetrics} onToggleMetric={toggleMetric} />
       <AppWindow title="About MacStats">
         <Features />
         <IdleCost />

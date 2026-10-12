@@ -26,7 +26,7 @@ export function Hero() {
 
       <p className="mt-5 text-sm text-tertiary">Open source (MIT). macOS 13 or later on Apple Silicon.</p>
       <p className="mt-1 text-sm text-tertiary">
-        This is a live replica: click the menu bar items or the checkboxes in the dropdown.
+        This is a live replica: click the menu bar items, the section headers or the volume sliders in the dropdown.
       </p>
     </section>
   )

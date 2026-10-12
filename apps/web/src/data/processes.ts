@@ -17,7 +17,7 @@ export type Process = {
 export const BASE_PROCESSES: Process[] = [
   { pid: 812, name: 'Xcode', cpu: 38.4, memoryGB: 3.4, diskRead: 1.0, diskWrite: 0.4, netIn: 0.006, netOut: 0.002, energy: 42.1 },
   { pid: 371, name: 'WindowServer', cpu: 14.2, memoryGB: 0.6, diskRead: 0, diskWrite: 0, netIn: 0, netOut: 0, energy: 9.6 },
-  { pid: 1204, name: 'Safari', cpu: 9.1, memoryGB: 2.1, diskRead: 0.2, diskWrite: 0.1, netIn: 1.0, netOut: 0.1, energy: 18.3 },
+  { pid: 1204, name: 'Google Chrome', cpu: 9.1, memoryGB: 2.1, diskRead: 0.2, diskWrite: 0.1, netIn: 1.0, netOut: 0.1, energy: 18.3 },
   { pid: 1477, name: 'Slack', cpu: 4.3, memoryGB: 0.9, diskRead: 0.06, diskWrite: 0.04, netIn: 0.15, netOut: 0.05, energy: 5.2 },
   { pid: 1532, name: 'Spotify', cpu: 2.2, memoryGB: 0.4, diskRead: 0.02, diskWrite: 0.01, netIn: 0.09, netOut: 0.01, energy: 3.1 },
   { pid: 298, name: 'mds_stores', cpu: 1.8, memoryGB: 0.12, diskRead: 2.4, diskWrite: 0.8, netIn: 0, netOut: 0, energy: 1.1 },

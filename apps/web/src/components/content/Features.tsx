@@ -7,11 +7,15 @@ const FEATURES = [
   },
   {
     title: 'Dropdown',
-    body: 'Live readouts plus the top processes by CPU, memory, disk, network and energy. It opens on the tab of the metric you clicked.',
+    body: 'Live readouts plus the top processes by CPU, memory, disk, network and energy. It opens on the tab of the metric you clicked, and every section folds away so it stays as short as you like.',
   },
   {
     title: 'Main window',
     body: 'CPU, GPU, memory, disk, network, battery, temperature and fans, each chart switchable between the last minute, hour and day. Plus a full process table you can filter and sort.',
+  },
+  {
+    title: 'Volume mixer',
+    body: 'Every app that plays sound gets its own volume slider and mute, like the Windows mixer. MacStats remembers each app and applies it whenever the app plays again. Requires macOS 14.4.',
   },
   {
     title: 'Private',
