@@ -53,6 +53,7 @@ apps/macos/Sources/MacStats/
 ├── ProcessKill.swift            # confirm-and-kill helper used by leader rows
 ├── UpdateChecker.swift          # Sparkle SPUStandardUpdaterController wrapper; gentle-reminder banner in popover + Settings card
 ├── Analytics.swift              # opt-out Umami pings (heartbeat / popover_open / window_open), max 1 per name per day
+├── AudioMixer.swift             # per-app volume (macOS 14.4+): CoreAudio process tap + private aggregate + gain IOProc
 ├── Monitors/                    # stateless-ish samplers, one per hardware domain
 │   ├── CPUMonitor.swift         # aggregate host_statistics + per-core host_processor_info + getloadavg
 │   ├── MemoryMonitor.swift      # host_statistics64 HOST_VM_INFO64 + vm.swapusage + swap-in/out rates
@@ -69,11 +70,12 @@ apps/macos/Sources/MacStats/
 │   └── SamplingMath.swift       # shared delta / rate helpers (handles counter rollover)
 └── Views/
     ├── SingleMetricLabel.swift     # one metric in the menu bar; reads a MetricLabelModel that StatusBarController updates only when the text changes
-    ├── MenuBarContentView.swift    # dropdown / popover content (header + sections + prefs + quit)
+    ├── MenuBarContentView.swift    # dropdown / popover content (header + collapsible PopoverSections + quit); expanded state in `popover.expanded.<key>`, host uses `sizingOptions = .preferredContentSize` so toggling resizes the popover. Menu bar prefs live only in Settings.
     ├── MenuBarPrefsView.swift      # 3-col grid of checkboxes for which metrics show in bar
     ├── TopProcessesView.swift      # tabbed top processes (CPU/RAM/Disk/Network/Energy)
+    ├── MixerView.swift             # per-app volume rows (popover "Sound" section) + SoundPane (sidebar)
     ├── MainWindowView.swift        # sidebar nav (Overview / Hardware / Activity)
-    ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, SparkShape, AreaSpark, DualAreaSpark, CenteredSpark, ScaleHelper
+    ├── PaneKit.swift               # shared pane primitives: Motion (spring + reveal tokens), SlidingSegmented, PaneHeader, MetricCard, SparkShape, AreaSpark, DualAreaSpark, CenteredSpark, ScaleHelper
     └── Panes/
         ├── DashboardPane.swift     # at-a-glance card grid (cpu, mem, network, disk, battery, temperature)
         ├── MetricPanes.swift       # CPU / GPU / Memory / Disk / Network / Battery / Temperature / Fans + LeaderList
@@ -128,9 +130,13 @@ When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(for
 
 - **One `NSStatusItem` per metric** (CPU, Temperature, RAM, Disk, Network, plus `appIcon` — six total `BarMetric` cases; `appIcon` renders the bundled `AppIcon` image, falling back to an SF Symbol in debug builds where `bundle.sh` hasn't copied the `.icns`). Not a single item with a multi-slot label. This lets macOS hide items individually under width pressure instead of collapsing the whole group at once. Each item owns an `NSHostingView<SingleMetricLabel>`.
 - All items are **created once at launch** and toggled via `item.isVisible` when the user checks/unchecks a metric. Recreating items on every toggle turned out to be flaky (items occasionally failed to reappear).
-- Items share **one `NSPopover`** (`behavior = .transient`, no animation). Clicking any item's button opens the popover anchored to that button, and the clicked `BarMetric` is passed down as `MenuBarContentView.focus` so the Top Processes tab starts on that metric (temperature falls back to CPU — there is no temperature tab). Clicking a *different* item while the popover is open re-anchors it (close + reopen on the next runloop hop, with a retain held across the swap so `nettop` isn't killed and respawned).
+- Items share **one `NSPopover`** (`behavior = .transient`, native open/close animation). Clicking any item's button opens the popover anchored to that button, and the clicked `BarMetric` is passed down as `MenuBarContentView.focus` so the Top Processes tab starts on that metric (temperature falls back to CPU — there is no temperature tab). Clicking a *different* item while the popover is open re-anchors it (close + reopen on the next runloop hop, with a retain held across the swap so `nettop` isn't killed and respawned; the close skips its animation via a temporary `animates = false` so it finishes before the reopen, which still animates).
 - Popover closes on outside click via a **global `NSEvent.addGlobalMonitorForEvents`** monitor for `leftMouseDown`/`rightMouseDown`. `.transient` alone is unreliable, especially when items get hidden.
 - Menu bar label uses `Font.system(size: 9, weight: .bold).monospacedDigit()` with compact integer-only suffixes (`99%`, `11G`, `512K`, `3M`, `65°`) and fixed-width frames per metric.
+
+### Motion
+
+Restraint first (Emil Kowalski's gate: frequency, purpose, <300 ms, never on data being read). Every animation uses `Motion.spring(reduceMotion:)` (critically damped, response 0.3; Reduce Motion → 0.15 s ease-out fade) and `Motion.reveal(reduceMotion:)` (fade + 4 pt drop; Reduce Motion → fade only). Animated today: popover open/close (native `NSPopover` animation from the menu bar arrow), section expand/collapse, top-process rows (keyed by process: tab switches and re-ranks slide rows, entries/exits fade), mixer rows reordering/entering/leaving, mute symbol `.replace`, the permission warning, and the selection pill of `SlidingSegmented` (`PaneKit.swift`; replaces the native `.segmented` Picker, which can't animate, in Top processes and `HistoryRangePicker`). Deliberately not animated: live number text (1 Hz data), sparklines, main-window sidebar switches.
 
 ### Dock icon
 
@@ -156,9 +162,7 @@ Auto-update uses **Sparkle 2** (`UpdateChecker`, started in `applicationDidFinis
 
 `AppDelegate` also runs a 6 h loop calling `Analytics.track("heartbeat")`. `StatusBarController.openPopover` tracks `popover_open`, `MainWindowController.show` tracks `window_open`.
 
-`Analytics` posts to Umami `/api/send` with a random per-install UUID as the distinct `id` (so Umami Sessions / Retention follow one install over time) plus `version`, `macOS`, `arch`. Each event name is sent at most once per UTC day (`analytics.lastSent`, written only on HTTP 200). Config comes from `Info.plist` keys `MacStatsUmamiHost` / `MacStatsUmamiWebsiteID`, filled by `bundle.sh` from `UMAMI_HOST` / `UMAMI_WEBSITE_ID` (GitHub repo variables in `release.yml`). Empty = disabled, so local builds never ping. User opt-out: Settings → Privacy (`analytics.enabled`, default on). The User-Agent mimics a Mac browser because Umami drops bot-looking agents.
-
-**Pending (do with the next release):** analytics moved from Umami Cloud to self-hosted `https://umami.luizcastro.dev` (website `1b6c2bd2-b147-4a1a-82f6-319e8fc912f2` keeps its ID there, now app-only; the site has its own ID in `apps/web/.env`). Shipped builds still ping `cloud.umami.is`. Before tagging the next release, set the repo variable: `gh variable set UMAMI_HOST --body https://umami.luizcastro.dev` (keep `UMAMI_WEBSITE_ID` as is), then delete this note.
+`Analytics` posts to the self-hosted Umami at `https://umami.luizcastro.dev` (`/api/send`; website `1b6c2bd2-b147-4a1a-82f6-319e8fc912f2` is app-only, the landing page has its own ID in `apps/web/.env`) with a random per-install UUID as the distinct `id` (so Umami Sessions / Retention follow one install over time) plus `version`, `macOS`, `arch`. Each event name is sent at most once per UTC day (`analytics.lastSent`, written only on HTTP 200). Config comes from `Info.plist` keys `MacStatsUmamiHost` / `MacStatsUmamiWebsiteID`, filled by `bundle.sh` from `UMAMI_HOST` / `UMAMI_WEBSITE_ID` (GitHub repo variables in `release.yml`). Empty = disabled, so local builds never ping. User opt-out: Settings → Privacy (`analytics.enabled`, default on). The User-Agent mimics a Mac browser because Umami drops bot-looking agents.
 
 ## Non-obvious technical decisions
 
@@ -182,6 +186,12 @@ Lifecycle is **refcount-gated** via `retainNetworkProcessSampling()` / `releaseN
 Typical shutdown takes ~10–50 ms (SIGTERM resolves it); hard cap is 500 ms.
 
 `AppDelegate.killOrphanNettops()` runs on both `applicationDidFinishLaunching` and `applicationWillTerminate` — it `pkill -f`s any leftover nettop processes matching our exact arguments, covering the rare case where MacStats was killed with SIGKILL and couldn't run its own teardown.
+
+### Per-app volume via process taps
+
+`AudioMixer` (macOS 14.4+, started in `applicationDidFinishLaunching`) groups CoreAudio process objects (`kAudioHardwarePropertyProcessObjectList`) by owning app: the process itself if it's a regular app (so a Steam- or Terminal-launched game isn't filed under its launcher), else `responsibility_get_pid_responsible_for_pid` (private, `@_silgen_name`), then a parent-pid walk until a regular `NSRunningApplication`; then `daemonOwners` maps Apple daemons that play for an app (`avconferenced`/`callservicesd` → FaceTime, `assistantd`/`corespeechd` → Siri, `usernoted` → Notifications; `systemsoundserverd` mixes every app's alerts with no attribution → one "System Sounds" row); then a helper inside an `.app` → the outermost bundle; else `proc:<executable>` (`afplay`, `say`). Like the Windows mixer, a Dock app gets a row once it has an audio session (is in the HAL process list), even while silent; apps that never opened audio (Finder, terminals) don't. Daemons / CLI tools only show while playing or with a saved setting. Playing rows sort first. An app at 100% / unmuted is untouched. Otherwise, while it's producing output, a `TapEngine` runs: `CATapDescription(stereoMixdownOfProcesses:)` with `.mutedWhenTapped` + a private aggregate (main sub-device = the device the app is actually playing to, from `kAudioProcessPropertyDevices` output scope, falling back to the default output; tap in `TapList`) + an IOProc that copies the tap (last input buffer) to the output scaled by the gain. HAL listeners on the process list, each process's `IsRunningOutput` / `IsRunning` / `Devices`, and the default output device (which drops all engines so they rebuild on the new UID). Notifications alone miss transitions (Chromium's audio service often never fires), so `MixerView` also retains a 1 s poll while it's on screen (`retainView` / `releaseView`). Teardown calls `AudioDeviceStop` synchronously (hands audio back instantly) and destroys IOProc / aggregate / tap on a background queue (can block on a wedged HAL). Settings persist per bundle id in `mixer.settings`. Needs `NSAudioCaptureUsageDescription` (in `bundle.sh`); without the System Audio Recording permission the tap delivers silence.
+
+Per-tab browser volume is **not** possible this way: Chromium browsers (Chrome, Dia, Arc, Electron apps) play every tab through one `audio.mojom.AudioService` helper, so CoreAudio sees one already-mixed process. Per-tab would need a browser extension (`tabCapture` + `GainNode`) talking to the app over Native Messaging.
 
 ### Temperature via private IOHID
 

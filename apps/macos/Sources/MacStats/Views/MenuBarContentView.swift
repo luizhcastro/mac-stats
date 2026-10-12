@@ -30,10 +30,18 @@ struct MenuBarContentView: View {
                 Divider()
                 batterySection
             }
+            if #available(macOS 14.4, *) {
+                Divider()
+                SoundSection()
+            }
             Divider()
-            TopProcessesView(stats: stats, initialTab: .init(focus))
-            Divider()
-            MenuBarPrefsView(prefs: prefs)
+            PopoverSection("processes") {
+                Label("Top processes", systemImage: "list.bullet.rectangle")
+                    .font(.headline)
+                    .fixedSize()
+            } detail: {
+                TopProcessesView(stats: stats, initialTab: .init(focus))
+            }
             Divider()
             HStack {
                 Spacer()
@@ -42,6 +50,11 @@ struct MenuBarContentView: View {
                     .buttonStyle(.borderless)
             }
         }
+        // One line per row everywhere: truncate, never wrap (a wrapped title or
+        // caption row breaks the section grid). No minimumScaleFactor: the
+        // popover's self-sizing pass applied it even with room to spare, so
+        // fonts shrank whenever every section was collapsed.
+        .lineLimit(1)
         .padding(14)
         .frame(width: 340)
     }
@@ -82,14 +95,16 @@ struct MenuBarContentView: View {
     }
 
     private var cpuSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        PopoverSection("cpu") {
             HStack {
                 Label("CPU", systemImage: "cpu")
                     .font(.headline)
+                    .fixedSize()
                 Spacer()
                 Text(Fmt.percent(stats.cpu.usage))
                     .monospacedDigit()
             }
+        } detail: {
             HStack(spacing: 10) {
                 Text("user \(Fmt.percent(stats.cpu.user))")
                 Text("sys \(Fmt.percent(stats.cpu.system))")
@@ -111,14 +126,16 @@ struct MenuBarContentView: View {
     }
 
     private var temperatureSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        PopoverSection("temperature", expandedByDefault: false) {
             HStack {
                 Label("Temperature", systemImage: "thermometer")
                     .font(.headline)
+                    .fixedSize()
                 Spacer()
                 Text(Self.tempText(stats.temperature.cpuCelsius, fallback: stats.temperature.maxCelsius))
                     .monospacedDigit()
             }
+        } detail: {
             HStack(spacing: 10) {
                 if stats.temperature.cpuCelsius > 0 {
                     Text("CPU \(Self.tempText(stats.temperature.cpuCelsius))")
@@ -156,14 +173,16 @@ struct MenuBarContentView: View {
     }
 
     private var memorySection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        PopoverSection("memory", expandedByDefault: false) {
             HStack {
                 Label("Memory", systemImage: "memorychip")
                     .font(.headline)
+                    .fixedSize()
                 Spacer()
                 Text("\(Fmt.bytes(stats.memory.usedBytes)) / \(Fmt.totalBytes(stats.memory.totalBytes))")
                     .monospacedDigit()
             }
+        } detail: {
             HStack(spacing: 10) {
                 Text("wired \(Fmt.bytes(stats.memory.wiredBytes))")
                 Text("comp \(Fmt.bytes(stats.memory.compressedBytes))")
@@ -179,34 +198,36 @@ struct MenuBarContentView: View {
     }
 
     private var networkSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        HStack {
             Label("Network", systemImage: "network")
                 .font(.headline)
-            HStack {
-                Image(systemName: "arrow.down")
-                Text(Fmt.rate(stats.network.bytesInPerSec))
-                    .monospacedDigit()
-                Spacer()
-                Image(systemName: "arrow.up")
-                Text(Fmt.rate(stats.network.bytesOutPerSec))
-                    .monospacedDigit()
-            }
-            .font(.callout)
+                .fixedSize()
+                .padding(.leading, PopoverSection<EmptyView, EmptyView>.chevronWidth)
+            Spacer()
+            Image(systemName: "arrow.down")
+            Text(Fmt.rate(stats.network.bytesInPerSec))
+                .monospacedDigit()
+            Image(systemName: "arrow.up")
+                .padding(.leading, 8)
+            Text(Fmt.rate(stats.network.bytesOutPerSec))
+                .monospacedDigit()
         }
+        .font(.callout)
     }
 
     private var diskSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        PopoverSection("disk", expandedByDefault: false) {
             HStack {
                 Label("Disk", systemImage: "internaldrive")
                     .font(.headline)
+                    .fixedSize()
                 Spacer()
                 if stats.disk.capacityBytes > 0 {
                     Text("\(Fmt.bytes(stats.disk.capacityBytes - stats.disk.freeBytes)) / \(Fmt.totalBytes(stats.disk.capacityBytes))")
                         .monospacedDigit()
-                        .font(.caption)
                 }
             }
+        } detail: {
             HStack {
                 Image(systemName: "arrow.down")
                 Text(Fmt.rate(stats.disk.readPerSec))
@@ -221,14 +242,16 @@ struct MenuBarContentView: View {
     }
 
     private var batterySection: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        PopoverSection("battery", expandedByDefault: false) {
             HStack {
                 Label("Battery", systemImage: batteryIcon)
                     .font(.headline)
+                    .fixedSize()
                 Spacer()
                 Text(Fmt.percent(stats.battery.percent))
                     .monospacedDigit()
             }
+        } detail: {
             if stats.battery.isCharging, let mins = stats.battery.timeToFullMinutes {
                 Text("Full in \(Fmt.minutes(mins))")
                     .font(.caption)
@@ -286,6 +309,49 @@ struct Sparkline: View {
                 }
             }
             .stroke(Color.accentColor, lineWidth: 1.5)
+        }
+    }
+}
+
+/// Popover section with a clickable header that collapses the detail below
+/// it. Collapsed state persists per section (`popover.expanded.<key>`), so the
+/// popover stays as short as the user left it.
+struct PopoverSection<Header: View, Detail: View>: View {
+    static var chevronWidth: CGFloat { 14 }
+
+    @AppStorage private var expanded: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let header: Header
+    private let detail: Detail
+
+    init(_ key: String, expandedByDefault: Bool = true,
+         @ViewBuilder header: () -> Header, @ViewBuilder detail: () -> Detail) {
+        _expanded = AppStorage(wrappedValue: expandedByDefault, "popover.expanded.\(key)")
+        self.header = header()
+        self.detail = detail()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(Motion.spring(reduceMotion: reduceMotion)) { expanded.toggle() }
+            } label: {
+                HStack(spacing: 0) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        .frame(width: Self.chevronWidth, alignment: .leading)
+                    header
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                detail
+                    .padding(.leading, Self.chevronWidth)
+                    .transition(Motion.reveal(reduceMotion: reduceMotion))
+            }
         }
     }
 }

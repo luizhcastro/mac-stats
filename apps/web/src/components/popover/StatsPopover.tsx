@@ -1,33 +1,57 @@
+import { useLayoutEffect, useRef } from 'react'
 import type { PopoverPosition } from '../../hooks/usePopoverAnchor'
 import type { LiveStats } from '../../hooks/useLiveStats'
 import { formatRate } from '../../lib/format'
 import { MAIN_WINDOW_ID } from '../../lib/links'
 import type { BarMetric, ProcessTab } from '../../lib/metrics'
+import type { Mixer } from '../../lib/mixer'
 import { Icon } from '../Icon'
-import { MenuBarPrefs } from './MenuBarPrefs'
+import { MixerRows } from './MixerRows'
 import { Caption, Divider, InOutRow, Section } from './Section'
 import { Sparkline } from './Sparkline'
 import { TopProcesses } from './TopProcesses'
 
 type StatsPopoverProps = {
   stats: LiveStats
+  mixer: Mixer
   /** Where to float under the menu bar; null = sit in the page flow (narrow screens) */
   position: PopoverPosition | null
+  /** Menu bar item it's anchored to; changing it replays the open animation from the new arrow */
+  anchor: BarMetric
   tab: ProcessTab
   onTabChange: (tab: ProcessTab) => void
-  visible: Set<BarMetric>
-  onToggleMetric: (metric: BarMetric) => void
 }
 
-/** The dropdown, section by section in the same order as MenuBarContentView.swift */
-export function StatsPopover({ stats, position, tab, onTabChange, visible, onToggleMetric }: StatsPopoverProps) {
+/**
+ * The dropdown, section by section in the same order as MenuBarContentView.swift. Sections
+ * collapse from their header like the app's; CPU and Top processes start open. Sound starts
+ * open here too (collapsed in the app) so the mixer is visible on the page.
+ */
+export function StatsPopover({ stats, mixer, position, anchor, tab, onTabChange }: StatsPopoverProps) {
   const { cpu, memory, temperature } = stats
   const [load1, load5, load15] = cpu.load
+  const playing = mixer.apps.filter((a) => a.playing).length
+
+  // NSPopover grows out of its arrow: replay that whenever it re-anchors under another item
+  const ref = useRef<HTMLDivElement>(null)
+  const firstAnchor = useRef(true)
+  useLayoutEffect(() => {
+    if (firstAnchor.current) {
+      firstAnchor.current = false
+      return
+    }
+    const el = ref.current
+    if (!el || !position) return
+    el.classList.remove('animate-popover-in')
+    void el.offsetWidth // restart the animation
+    el.classList.add('animate-popover-in')
+  }, [anchor])
 
   return (
     <div
+      ref={ref}
       aria-label="MacStats dropdown preview"
-      style={position ? { left: position.left } : undefined}
+      style={position ? { left: position.left, transformOrigin: `${position.arrow}px 0` } : undefined}
       className={`glass glass-dark w-[min(340px,100%)] rounded-[22px] p-3.5 text-[13px] leading-[1.3] ${
         position ? 'absolute top-[38px] z-20' : 'relative mx-auto mt-12 md:mt-16'
       }`}
@@ -46,7 +70,7 @@ export function StatsPopover({ stats, position, tab, onTabChange, visible, onTog
       </header>
 
       <Divider />
-      <Section icon="cpu" title="CPU" value={<span className="tabular-nums">{cpu.total.toFixed(0)}%</span>}>
+      <Section icon="cpu" title="CPU" value={<span className="tabular-nums">{cpu.total.toFixed(0)}%</span>} defaultOpen>
         <Caption>
           user {cpu.user.toFixed(0)}%&ensp;sys {cpu.system.toFixed(0)}%&ensp;idle {(100 - cpu.total).toFixed(0)}%
         </Caption>
@@ -82,12 +106,18 @@ export function StatsPopover({ stats, position, tab, onTabChange, visible, onTog
       </Section>
 
       <Divider />
-      <Section icon="network" title="Network">
-        <InOutRow down={formatRate(stats.network.in)} up={formatRate(stats.network.out)} />
-      </Section>
+      <Section
+        icon="network"
+        title="Network"
+        value={
+          <span className="font-normal">
+            <InOutRow down={formatRate(stats.network.in)} up={formatRate(stats.network.out)} />
+          </span>
+        }
+      />
 
       <Divider />
-      <Section icon="internaldrive" title="Disk" value={<Caption className="tabular-nums">412 GB / 494 GB</Caption>}>
+      <Section icon="internaldrive" title="Disk" value={<span className="tabular-nums">412 GB / 494 GB</span>}>
         <InOutRow down={formatRate(stats.disk.read)} up={formatRate(stats.disk.write)} />
       </Section>
 
@@ -98,10 +128,19 @@ export function StatsPopover({ stats, position, tab, onTabChange, visible, onTog
       </Section>
 
       <Divider />
-      <TopProcesses tab={tab} onTabChange={onTabChange} processes={stats.processes} />
+      <Section
+        icon="speaker"
+        title="Sound"
+        value={<Caption>{playing === 0 ? 'silent' : `${playing} playing`}</Caption>}
+        defaultOpen
+      >
+        <MixerRows mixer={mixer} compact />
+      </Section>
 
       <Divider />
-      <MenuBarPrefs visible={visible} onToggle={onToggleMetric} />
+      <Section icon="list" title="Top processes" defaultOpen>
+        <TopProcesses tab={tab} onTabChange={onTabChange} processes={stats.processes} />
+      </Section>
 
       <Divider />
       <div className="text-right text-secondary">Quit</div>

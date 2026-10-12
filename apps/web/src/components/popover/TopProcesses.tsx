@@ -1,6 +1,8 @@
 import type { Process } from '../../data/processes'
+import { useFlip } from '../../hooks/useFlip'
 import { formatProcessValue, topProcesses } from '../../lib/format'
 import { PROCESS_TABS, type ProcessTab } from '../../lib/metrics'
+import { Segmented } from '../ui/Segmented'
 
 type TopProcessesProps = {
   tab: ProcessTab
@@ -8,41 +10,25 @@ type TopProcessesProps = {
   processes: Process[]
 }
 
-/** Segmented picker + top 8 rows, mirrors TopProcessesView.swift */
+/**
+ * Sliding segmented picker + top 8 rows, mirrors TopProcessesView.swift. Rows are keyed by
+ * PID: a tab switch or re-rank slides a process to its new place, newcomers fade in.
+ */
 export function TopProcesses({ tab, onTabChange, processes }: TopProcessesProps) {
-  return (
-    <section>
-      <div role="tablist" className="grid grid-cols-5 rounded-lg bg-white/8">
-        {PROCESS_TABS.map(({ id, label }, i) => {
-          const selected = id === tab
-          // Hairline between two unselected segments, like NSSegmentedControl
-          const showSeparator = i > 0 && !selected && PROCESS_TABS[i - 1].id !== tab
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => onTabChange(id)}
-              className={`relative cursor-pointer rounded-lg py-0.5 text-[13px] ${
-                selected ? 'bg-accent font-medium text-on-accent shadow-[inset_0_0.5px_0_rgb(255_255_255/0.35)]' : ''
-              }`}
-            >
-              {showSeparator && <span className="absolute top-1/4 left-0 h-1/2 border-l-[0.5px] border-white/20" />}
-              {label}
-            </button>
-          )
-        })}
-      </div>
+  const rows = topProcesses(processes, tab, 8)
+  const listRef = useFlip<HTMLUListElement>([rows.map((p) => p.pid).join()])
 
-      <ul className="mt-1 text-[11px] leading-[1.32]">
-        {topProcesses(processes, tab, 8).map((p) => (
-          <li key={p.pid} className="flex justify-between gap-2 py-px">
+  return (
+    <div>
+      <Segmented options={PROCESS_TABS} value={tab} onChange={onTabChange} className="text-[13px]" />
+      <ul ref={listRef} className="relative mt-1 text-[11px] leading-[1.32]">
+        {rows.map((p) => (
+          <li key={p.pid} data-flip-key={p.pid} className="flex animate-reveal justify-between gap-2 py-px">
             <span className="truncate">{p.name}</span>
             <span className="text-secondary tabular-nums">{formatProcessValue(tab, p)}</span>
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   )
 }

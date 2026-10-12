@@ -3,6 +3,7 @@ import type { LiveStats } from '../../hooks/useLiveStats'
 import type { HistoryRange } from '../../lib/history'
 import { MAIN_WINDOW_ID } from '../../lib/links'
 import type { BarMetric } from '../../lib/metrics'
+import type { Mixer } from '../../lib/mixer'
 import { TrafficLights } from '../TrafficLights'
 import { BatteryPane } from './panes/BatteryPane'
 import { CpuPane } from './panes/CpuPane'
@@ -14,17 +15,19 @@ import { NetworkPane } from './panes/NetworkPane'
 import { OverviewPane } from './panes/OverviewPane'
 import { ProcessesPane } from './panes/ProcessesPane'
 import { SettingsPane } from './panes/SettingsPane'
+import { SoundPane } from './panes/SoundPane'
 import { TemperaturePane } from './panes/TemperaturePane'
 import { CompactSidebar, SECTION_TITLES, Sidebar, type SidebarSection } from './Sidebar'
 
 type MainWindowProps = {
   stats: LiveStats
+  mixer: Mixer
   visible: Set<BarMetric>
   onToggleMetric: (metric: BarMetric) => void
 }
 
 /** Interactive replica of the MacStats main window (MainWindowView.swift) */
-export function MainWindow({ stats, visible, onToggleMetric }: MainWindowProps) {
+export function MainWindow({ stats, mixer, visible, onToggleMetric }: MainWindowProps) {
   const [selection, setSelection] = useState<SidebarSection>('overview')
   const [range, setRange] = useState<HistoryRange>('minute')
 
@@ -40,6 +43,7 @@ export function MainWindow({ stats, visible, onToggleMetric }: MainWindowProps) 
     temperature: <TemperaturePane {...rangeProps} />,
     fans: <FansPane stats={stats} />,
     processes: <ProcessesPane stats={stats} />,
+    sound: <SoundPane mixer={mixer} />,
     settings: <SettingsPane visible={visible} onToggleMetric={onToggleMetric} />,
   }
 

@@ -1,5 +1,19 @@
 import SwiftUI
 
+/// Shared motion tokens. One spring for every UI state change: critically
+/// damped (no overshoot), ~0.3 s. With Reduce Motion on, a short ease-out
+/// cross-fade instead (gentler, not zero).
+enum Motion {
+    static func spring(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1)
+    }
+
+    /// Content entering/leaving: fade plus a small drop, never from nothing.
+    static func reveal(reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: -4))
+    }
+}
+
 struct PaneHeader: View {
     let title: String
     let subtitle: String?
@@ -173,14 +187,82 @@ struct HistoryRangePicker: View {
     @Binding var selection: HistoryRange
 
     var body: some View {
-        Picker("Range", selection: $selection) {
-            ForEach(HistoryRange.allCases) { r in
-                Text(r.label).tag(r)
+        SlidingSegmented(options: HistoryRange.allCases, selection: $selection, label: \.label)
+            .frame(width: 160)
+    }
+}
+
+/// Loading placeholder for content whose first sample hasn't landed yet (process
+/// lists, per-core bars, interfaces). Keeps the real layout and lets SwiftUI's
+/// native `.placeholder` redaction draw the text as rounded grey bars, with a
+/// slow opacity pulse (static under Reduce Motion).
+///
+/// ponytail: "empty = loading" is the signal at every call site. Those lists are
+/// never empty on a working Mac (top-K always has K processes, every Mac has
+/// cores and interfaces), so no separate loaded flag is threaded through.
+struct Skeleton: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dimmed = false
+
+    func body(content: Content) -> some View {
+        content
+            .redacted(reason: .placeholder)
+            .opacity(dimmed ? 0.45 : 1)
+            .allowsHitTesting(false)
+            .accessibilityLabel("Loading")
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { dimmed = true }
+            }
+    }
+
+    /// Process-like names of varying length, so the grey bars don't all match.
+    static func name(_ index: Int) -> String {
+        ["kernel_task", "WindowServer", "Google Chrome Helper", "Finder", "Spotify Helper",
+         "mds_stores", "Xcode", "Safari Web Content", "launchd", "coreaudiod"][index % 10]
+    }
+}
+
+extension View {
+    func skeleton() -> some View { modifier(Skeleton()) }
+}
+
+/// Segmented control whose blue selection pill slides to the tapped segment.
+/// The native `.segmented` Picker jumps; this keeps its macOS 26 look (capsule
+/// track, accent pill, white label) and adds the motion.
+struct SlidingSegmented<Option: Hashable & Identifiable>: View {
+    let options: [Option]
+    @Binding var selection: Option
+    let label: (Option) -> String
+    @Namespace private var pill
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options) { option in
+                let selected = option == selection
+                Button {
+                    withAnimation(Motion.spring(reduceMotion: reduceMotion)) { selection = option }
+                } label: {
+                    Text(label(option))
+                        .font(.system(size: 12))
+                        .foregroundStyle(selected ? Color.white : Color.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 3)
+                        .background {
+                            if selected {
+                                Capsule()
+                                    .fill(Color.accentColor)
+                                    .matchedGeometryEffect(id: "pill", in: pill)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(width: 160)
+        .padding(2)
+        .background(Capsule().fill(Color.primary.opacity(0.08)))
     }
 }
 

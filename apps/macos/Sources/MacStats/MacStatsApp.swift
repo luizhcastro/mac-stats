@@ -35,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         installAppMenu()
         UpdateChecker.shared.start()
+        if #available(macOS 14.4, *) {
+            AudioMixer.shared.start()
+        }
         Task {
             while true {
                 Analytics.track("heartbeat")

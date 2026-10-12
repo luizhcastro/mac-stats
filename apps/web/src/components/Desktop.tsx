@@ -2,21 +2,22 @@ import { useRef, useState } from 'react'
 import type { LiveStats } from '../hooks/useLiveStats'
 import { usePopoverAnchor } from '../hooks/usePopoverAnchor'
 import { BAR_METRICS, TAB_FOR_METRIC, type BarMetric, type ProcessTab } from '../lib/metrics'
+import type { Mixer } from '../lib/mixer'
 import { Hero } from './Hero'
 import { MenuBar } from './menubar/MenuBar'
 import { StatsPopover } from './popover/StatsPopover'
 
 type DesktopProps = {
   stats: LiveStats
+  mixer: Mixer
   visible: Set<BarMetric>
-  onToggleMetric: (metric: BarMetric) => void
 }
 
 /**
  * The first screen: a fake macOS desktop with the menu bar, the hero copy and the
  * MacStats dropdown open under whichever menu bar item was clicked last.
  */
-export function Desktop({ stats, visible, onToggleMetric }: DesktopProps) {
+export function Desktop({ stats, mixer, visible }: DesktopProps) {
   const [anchor, setAnchor] = useState<BarMetric>('cpu')
   const [tab, setTab] = useState<ProcessTab>('cpu')
 
@@ -45,11 +46,11 @@ export function Desktop({ stats, visible, onToggleMetric }: DesktopProps) {
         <Hero />
         <StatsPopover
           stats={stats}
+          mixer={mixer}
           position={position}
+          anchor={effectiveAnchor}
           tab={tab}
           onTabChange={setTab}
-          visible={visible}
-          onToggleMetric={onToggleMetric}
         />
       </div>
     </div>

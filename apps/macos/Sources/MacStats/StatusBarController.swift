@@ -24,7 +24,8 @@ final class StatusBarController {
 
         popover = NSPopover()
         popover.behavior = .transient
-        popover.animates = false
+        // Native popover animation: grows out of the menu bar arrow.
+        popover.animates = true
 
         buildAllStatusItems()
         applyVisibility()
@@ -124,7 +125,11 @@ final class StatusBarController {
             stats.retainDetailSampling()
             stats.retainNetworkProcessSampling()
         }
+        // Re-anchoring reopens on the next runloop hop, which needs the close
+        // to finish now: skip the close animation, keep the open one.
+        if reanchor { popover.animates = false }
         closePopover()
+        popover.animates = true
         guard reanchor else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -139,12 +144,15 @@ final class StatusBarController {
         stats.retainDetailSampling()
         stats.retainNetworkProcessSampling()
         popover.delegate = popoverDelegate
-        popover.contentViewController = NSHostingController(
+        let host = NSHostingController(
             rootView: MenuBarContentView(stats: stats, prefs: prefs, focus: focus, openWindow: { [weak self] in
                 self?.closePopover()
                 self?.openWindow()
             })
         )
+        // Collapsing / expanding sections resizes the popover.
+        host.sizingOptions = .preferredContentSize
+        popover.contentViewController = host
         anchorButton = button
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.becomeKey()

@@ -15,6 +15,38 @@
 
   /* Below this width the dropdown stops floating under the menu bar and sits in the page flow */
   --breakpoint-desk: 1180px;
+
+  /* Motion, mirroring `Motion` in PaneKit.swift: one strong ease-out for every UI state change,
+     ~300ms (the app's critically damped spring), and a fade + 4px drop for content arriving. */
+  --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-reveal: reveal 300ms var(--ease-snappy);
+  --animate-popover-in: popover-in 220ms var(--ease-snappy);
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+  @keyframes popover-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+}
+
+/* Reduce Motion: keep fades, drop movement (gentler, not zero) */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --animate-reveal: fade 150ms ease-out;
+    --animate-popover-in: fade 150ms ease-out;
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
 }
 
 /* Liquid glass: translucent fill, heavy blur + saturation, a bright specular rim on top,
