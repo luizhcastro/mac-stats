@@ -158,6 +158,8 @@ Auto-update uses **Sparkle 2** (`UpdateChecker`, started in `applicationDidFinis
 
 `Analytics` posts to Umami `/api/send` with a random per-install UUID as the distinct `id` (so Umami Sessions / Retention follow one install over time) plus `version`, `macOS`, `arch`. Each event name is sent at most once per UTC day (`analytics.lastSent`, written only on HTTP 200). Config comes from `Info.plist` keys `MacStatsUmamiHost` / `MacStatsUmamiWebsiteID`, filled by `bundle.sh` from `UMAMI_HOST` / `UMAMI_WEBSITE_ID` (GitHub repo variables in `release.yml`). Empty = disabled, so local builds never ping. User opt-out: Settings → Privacy (`analytics.enabled`, default on). The User-Agent mimics a Mac browser because Umami drops bot-looking agents.
 
+**Pending (do with the next release):** analytics moved from Umami Cloud to self-hosted `https://umami.luizcastro.dev` (website `1b6c2bd2-b147-4a1a-82f6-319e8fc912f2` keeps its ID there, now app-only; the site has its own ID in `apps/web/.env`). Shipped builds still ping `cloud.umami.is`. Before tagging the next release, set the repo variable: `gh variable set UMAMI_HOST --body https://umami.luizcastro.dev` (keep `UMAMI_WEBSITE_ID` as is), then delete this note.
+
 ## Non-obvious technical decisions
 
 ### Per-process network via `nettop`
