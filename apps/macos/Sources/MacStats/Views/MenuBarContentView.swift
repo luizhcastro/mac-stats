@@ -97,12 +97,14 @@ struct MenuBarContentView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .monospacedDigit()
             HStack(spacing: 10) {
                 let l = stats.cpu.loadAverage
                 Text(String(format: "load %.2f / %.2f / %.2f", l.one, l.five, l.fifteen))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .monospacedDigit()
             Sparkline(values: stats.cpuHistory, max: 100)
                 .frame(height: 28)
         }
@@ -133,6 +135,7 @@ struct MenuBarContentView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .monospacedDigit()
         }
     }
 
@@ -158,7 +161,7 @@ struct MenuBarContentView: View {
                 Label("Memory", systemImage: "memorychip")
                     .font(.headline)
                 Spacer()
-                Text("\(Fmt.bytes(stats.memory.usedBytes)) / \(Fmt.bytes(stats.memory.totalBytes))")
+                Text("\(Fmt.bytes(stats.memory.usedBytes)) / \(Fmt.totalBytes(stats.memory.totalBytes))")
                     .monospacedDigit()
             }
             HStack(spacing: 10) {
@@ -170,6 +173,7 @@ struct MenuBarContentView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .monospacedDigit()
             ProgressView(value: stats.memory.pressurePercent, total: 100)
         }
     }
@@ -198,7 +202,7 @@ struct MenuBarContentView: View {
                     .font(.headline)
                 Spacer()
                 if stats.disk.capacityBytes > 0 {
-                    Text("\(Fmt.bytes(stats.disk.capacityBytes - stats.disk.freeBytes)) / \(Fmt.bytes(stats.disk.capacityBytes))")
+                    Text("\(Fmt.bytes(stats.disk.capacityBytes - stats.disk.freeBytes)) / \(Fmt.totalBytes(stats.disk.capacityBytes))")
                         .monospacedDigit()
                         .font(.caption)
                 }
@@ -228,10 +232,12 @@ struct MenuBarContentView: View {
             if stats.battery.isCharging, let mins = stats.battery.timeToFullMinutes {
                 Text("Full in \(Fmt.minutes(mins))")
                     .font(.caption)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             } else if let mins = stats.battery.timeToEmptyMinutes {
                 Text("\(Fmt.minutes(mins)) remaining")
                     .font(.caption)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             if let healthLine {

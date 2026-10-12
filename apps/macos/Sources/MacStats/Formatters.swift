@@ -5,11 +5,25 @@ enum Fmt {
         let bcf = ByteCountFormatter()
         bcf.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
         bcf.countStyle = .memory
+        // Keeps live values at a constant width ("11.20 GB", not "11.2 GB" then "11.14 GB")
+        bcf.zeroPadsFractionDigits = true
+        return bcf
+    }()
+
+    nonisolated(unsafe) private static let totalFormatter: ByteCountFormatter = {
+        let bcf = ByteCountFormatter()
+        bcf.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
+        bcf.countStyle = .memory
         return bcf
     }()
 
     static func bytes(_ value: UInt64) -> String {
         byteFormatter.string(fromByteCount: Int64(value))
+    }
+
+    /// Fixed capacities ("16 GB", "494.38 GB"): no zero padding since they never change
+    static func totalBytes(_ value: UInt64) -> String {
+        totalFormatter.string(fromByteCount: Int64(value))
     }
 
     static func compactRate(_ bytesPerSec: Double) -> String {

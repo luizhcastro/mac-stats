@@ -40,6 +40,7 @@ struct DashboardPane: View {
                 Spacer()
                 Text("user \(Fmt.percent(stats.cpu.user)) · sys \(Fmt.percent(stats.cpu.system))")
                     .font(.caption)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -54,11 +55,12 @@ struct DashboardPane: View {
                 Text("\(Fmt.bytes(stats.memory.usedBytes))")
                     .font(.system(size: 28, weight: .semibold))
                     .monospacedDigit()
-                Text("/ \(Fmt.bytes(stats.memory.totalBytes))")
+                Text("/ \(Fmt.totalBytes(stats.memory.totalBytes))")
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text("pressure \(Fmt.percent(stats.memory.pressurePercent))")
                     .font(.caption)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -164,8 +166,10 @@ struct DashboardPane: View {
         HStack(spacing: 4) {
             Image(systemName: symbol)
                 .foregroundStyle(color)
+            // Reserve the widest form ("999.9 KB/s") so the ↑ block doesn't shift when ↓ changes unit
             Text(Fmt.rate(rate))
                 .monospacedDigit()
+                .frame(minWidth: 72, alignment: .leading)
         }
         .font(.callout)
     }

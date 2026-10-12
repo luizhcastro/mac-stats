@@ -89,7 +89,7 @@ struct MemoryPane: View {
                         Text(Fmt.bytes(stats.memory.usedBytes))
                             .font(.system(size: 36, weight: .semibold))
                             .monospacedDigit()
-                        Text("of \(Fmt.bytes(stats.memory.totalBytes))")
+                        Text("of \(Fmt.totalBytes(stats.memory.totalBytes))")
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
@@ -134,7 +134,7 @@ struct MemoryPane: View {
                                 .font(.system(size: 22, weight: .semibold))
                                 .monospacedDigit()
                             if stats.memory.swapTotalBytes > 0 {
-                                Text("of \(Fmt.bytes(stats.memory.swapTotalBytes))")
+                                Text("of \(Fmt.totalBytes(stats.memory.swapTotalBytes))")
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -242,7 +242,7 @@ struct DiskPane: View {
                         let used = stats.disk.capacityBytes - stats.disk.freeBytes
                         StatRow(label: "Used", value: Fmt.bytes(used))
                         StatRow(label: "Free", value: Fmt.bytes(stats.disk.freeBytes))
-                        StatRow(label: "Total", value: Fmt.bytes(stats.disk.capacityBytes))
+                        StatRow(label: "Total", value: Fmt.totalBytes(stats.disk.capacityBytes))
                         ProgressView(
                             value: Double(used),
                             total: Double(max(stats.disk.capacityBytes, 1))
@@ -850,7 +850,7 @@ struct VolumeRow: View {
                 smartBadge
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(Fmt.bytes(volume.usedBytes)) / \(Fmt.bytes(volume.totalBytes))")
+                Text("\(Fmt.bytes(volume.usedBytes)) / \(Fmt.totalBytes(volume.totalBytes))")
                     .font(.callout)
                     .monospacedDigit()
                 Text("· \(Fmt.bytes(volume.freeBytes)) free")
