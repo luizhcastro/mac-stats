@@ -53,6 +53,13 @@ enum Fmt {
         return "\(r)m"
     }
 
+    /// "3d 4h", "4h 12m", "12m"
+    static func uptime(_ seconds: TimeInterval) -> String {
+        let m = Int(seconds / 60)
+        if m >= 24 * 60 { return "\(m / 1440)d \(m % 1440 / 60)h" }
+        return minutes(m)
+    }
+
     static func volts(_ v: Double) -> String {
         String(format: "%.2f V", v)
     }

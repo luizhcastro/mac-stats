@@ -73,7 +73,7 @@ apps/macos/Sources/MacStats/
     ├── MainWindowView.swift        # sidebar nav (Overview / Hardware / Activity)
     ├── PaneKit.swift               # shared pane primitives: PaneHeader, MetricCard, AreaSpark, DualAreaSpark, ScaleHelper
     └── Panes/
-        ├── DashboardPane.swift     # at-a-glance card grid (cpu, mem, network, disk, battery, temperature)
+        ├── DashboardPane.swift     # at-a-glance card grid (cpu, mem, network, disk, battery, temperature) + top CPU processes
         ├── MetricPanes.swift       # CPU / GPU / Memory / Disk / Network / Battery / Temperature / Fans + LeaderList
         └── ProcessesPane.swift     # full filterable / sortable process table
 

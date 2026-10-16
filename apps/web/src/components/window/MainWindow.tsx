@@ -48,22 +48,36 @@ export function MainWindow({ stats, mixer, visible, onToggleMetric }: MainWindow
   }
 
   return (
-    <section
-      id={MAIN_WINDOW_ID}
-      aria-label="MacStats main window preview"
-      className="mx-auto mb-24 scroll-mt-16 w-[calc(100%-2.5rem)] max-w-[1180px]">
-      <div className="glass glass-dark flex h-[min(720px,85svh)] overflow-hidden rounded-[26px] p-2 max-md:h-auto max-md:flex-col max-md:p-0">
-        <Sidebar selection={selection} onSelect={setSelection} />
+    <section id={MAIN_WINDOW_ID} aria-labelledby="main-window-title" className="scroll-mt-16 pt-[clamp(6rem,12vw,11rem)]">
+      <div className="page">
+        <h2 id="main-window-title" className="enter text-head leading-none font-bold tracking-[-0.035em]">
+          The whole machine in one window
+        </h2>
+        <p className="enter mt-6 max-w-[34em] text-lead leading-snug">
+          CPU, GPU, memory, disk, network, battery, temperature and fans each get a pane, plus a process table you can
+          filter and sort. This one is live too.
+        </p>
+      </div>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-11 flex-none items-center gap-3 px-6 max-md:px-4">
-            <span className="md:hidden">
-              <TrafficLights />
-            </span>
-            <span className="text-[15px] font-semibold">{SECTION_TITLES[selection]}</span>
+      {/* The window sits on the same grey stage as the dropdown, bleeding off the right edge */}
+      <div className="mt-14 ml-[max(0px,calc((100vw-1280px)/2))] rounded-tl-[160px] bg-stage py-[clamp(1.25rem,5vw,5rem)] pr-[clamp(1.25rem,4vw,3rem)] pl-[clamp(1.25rem,6vw,6rem)] max-md:rounded-tl-[72px] max-md:px-3">
+        <div
+          data-ui
+          aria-label="MacStats main window preview"
+          className="enter glass glass-dark flex h-[min(720px,85svh)] max-w-[1180px] overflow-hidden rounded-[26px] p-2 text-label max-md:h-auto max-md:flex-col max-md:p-0"
+        >
+          <Sidebar selection={selection} onSelect={setSelection} />
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex h-11 flex-none items-center gap-3 px-6 max-md:px-4">
+              <span className="md:hidden">
+                <TrafficLights />
+              </span>
+              <span className="text-[15px] font-semibold">{SECTION_TITLES[selection]}</span>
+            </div>
+            <CompactSidebar selection={selection} onSelect={setSelection} />
+            <div className="min-h-0 flex-1 md:overflow-y-auto">{panes[selection]}</div>
           </div>
-          <CompactSidebar selection={selection} onSelect={setSelection} />
-          <div className="min-h-0 flex-1 md:overflow-y-auto">{panes[selection]}</div>
         </div>
       </div>
     </section>

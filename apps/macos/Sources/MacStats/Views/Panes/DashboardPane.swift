@@ -12,7 +12,7 @@ struct DashboardPane: View {
             VStack(alignment: .leading, spacing: 0) {
                 PaneHeader(
                     title: "Overview",
-                    subtitle: "Live snapshot of system activity"
+                    subtitle: "Up \(Fmt.uptime(ProcessInfo.processInfo.systemUptime))"
                 )
                 LazyVGrid(columns: columns, spacing: 16) {
                     cpuCard
@@ -26,6 +26,8 @@ struct DashboardPane: View {
                         temperatureCard
                     }
                 }
+                topProcessesCard
+                    .padding(.top, 16)
             }
             .padding(24)
         }
@@ -115,8 +117,31 @@ struct DashboardPane: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            ProgressView(value: stats.battery.percent / 100.0)
-                .progressViewStyle(.linear)
+            // Same 30-minute charge ring as the Battery pane, minus the unfilled
+            // slots (so it doesn't start as a jump from 0); a bar until two samples land
+            let charge = Array(stats.history.batteryPercent.drop { $0 <= 0 })
+            if charge.count > 1 {
+                AreaSpark(
+                    values: charge,
+                    max: 100,
+                    color: stats.battery.isCharging ? .green : .blue
+                )
+                .equatable()
+            } else {
+                ProgressView(value: stats.battery.percent / 100.0)
+                    .progressViewStyle(.linear)
+            }
+        }
+    }
+
+    /// The hogs, so the Overview answers "what's using it" without a click
+    private var topProcessesCard: some View {
+        MetricCard(title: "Top CPU processes", icon: "list.bullet") {
+            LeaderList(
+                rows: stats.processLeaders.cpu.prefix(5).map {
+                    LeaderRow(id: "\($0.id)", pid: $0.id, name: $0.name, value: String(format: "%.2f%%", $0.cpuPercent))
+                }
+            )
         }
     }
 
