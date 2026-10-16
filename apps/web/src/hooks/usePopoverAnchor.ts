@@ -25,7 +25,8 @@ export function usePopoverAnchor(getAnchor: () => HTMLElement | null | undefined
       if (!anchor || !matchMedia(FLOATING_QUERY).matches) return setPosition(null)
       const rect = anchor.getBoundingClientRect()
       const center = rect.left + rect.width / 2
-      const maxLeft = window.innerWidth - POPOVER_WIDTH - EDGE_MARGIN
+      // clientWidth, not innerWidth: a classic (non-overlay) scrollbar takes width out of the viewport
+      const maxLeft = document.documentElement.clientWidth - POPOVER_WIDTH - EDGE_MARGIN
       const left = Math.min(Math.max(center - POPOVER_WIDTH / 2, EDGE_MARGIN), maxLeft)
       setPosition({ left, arrow: center - left })
     }
