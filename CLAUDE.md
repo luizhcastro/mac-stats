@@ -127,7 +127,7 @@ When the popover opens, `setDetailSamplingEnabled(true)` also calls `refresh(for
 
 ### Menu bar rendering
 
-- **One `NSStatusItem` per metric** (CPU, Temperature, RAM, Disk, Network, plus `appIcon` — six total `BarMetric` cases; `appIcon` renders the bundled `AppIcon` image, falling back to an SF Symbol in debug builds where `bundle.sh` hasn't copied the `.icns`). Not a single item with a multi-slot label. This lets macOS hide items individually under width pressure instead of collapsing the whole group at once. Each item owns an `NSHostingView<SingleMetricLabel>`.
+- **One `NSStatusItem` per metric** (CPU, Temperature, RAM, Disk, Network, plus `appIcon` — six total `BarMetric` cases; `appIcon` draws a single-colour version of the icon in SwiftUI: its superellipse tile filled in the default foreground with the three rings and centre dot cut out, so it follows the menu bar's light/dark appearance like the text items; issue #13). Not a single item with a multi-slot label. This lets macOS hide items individually under width pressure instead of collapsing the whole group at once. Each item owns an `NSHostingView<SingleMetricLabel>`.
 - All items are **created once at launch** and toggled via `item.isVisible` when the user checks/unchecks a metric. Recreating items on every toggle turned out to be flaky (items occasionally failed to reappear).
 - Items share **one `NSPopover`** (`behavior = .transient`, native open/close animation). Clicking any item's button opens the popover anchored to that button, and the clicked `BarMetric` is passed down as `MenuBarContentView.focus` so the Top Processes tab starts on that metric (temperature falls back to CPU — there is no temperature tab). Clicking a *different* item while the popover is open re-anchors it (close + reopen on the next runloop hop, with a retain held across the swap so `nettop` isn't killed and respawned; the close skips its animation via a temporary `animates = false` so it finishes before the reopen, which still animates).
 - Popover closes on outside click via a **global `NSEvent.addGlobalMonitorForEvents`** monitor for `leftMouseDown`/`rightMouseDown`. `.transient` alone is unreliable, especially when items get hidden.
@@ -263,7 +263,7 @@ SwiftUI `MenuBarExtra` was tried first. It collapses complex label layouts: only
 - The landing page / README use `apps/web/public/icon.png`.
 - `bundle.sh` copies the `.icns` into `Contents/Resources/AppIcon.icns` and sets `CFBundleIconFile = AppIcon`.
 - The dropdown header in `MenuBarContentView` loads the same icon via `NSImage(named: "AppIcon")`.
-- No mono/template variant for the menu bar; the colored bar glyphs come from SF Symbols in `SingleMetricLabel`.
+- The menu bar never shows the colour icon: the `appIcon` item is the single-colour superellipse tile drawn by `AppIconLabel` in `SingleMetricLabel` (mirrored as `AppGlyph` on the landing page), and the metric glyphs are SF Symbols.
 
 ## Adding a new monitor
 
