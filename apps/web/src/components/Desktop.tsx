@@ -63,7 +63,7 @@ export function Desktop({ stats, mixer, visible }: DesktopProps) {
   return (
     // On wide screens the dropdown floats (position: absolute) and takes no space in the flow, so
     // reserve its height (~870px from the top) to keep the next section from sliding under it.
-    <div id="top" className="relative min-h-svh desk:min-h-[max(100svh,60rem)]">
+    <div id="top" className="relative min-h-svh desk:min-h-[clamp(60rem,100svh,80rem)]">
       <MenuBar
         stats={stats}
         visible={visible}
