@@ -36,7 +36,7 @@ export function IdleCost() {
             {minutes}
             <span className="ml-[0.08em] text-[0.22em] tracking-[-0.02em]">min</span>
           </p>
-          <p className="enter late md:pb-3">
+          <p className="enter late tabular-nums md:pb-3">
             With its dropdown and window closed, MacStats averages about {IDLE_CPU_SHARE * 100}% of one core and{' '}
             {IDLE_MEMORY_MB} MB of memory. Over {hours} hours that adds up to {minutes} minutes of one core’s time.
           </p>
