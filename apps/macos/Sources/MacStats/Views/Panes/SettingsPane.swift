@@ -38,7 +38,7 @@ struct SettingsPane: View {
                 MetricCard(title: "Privacy", icon: "hand.raised") {
                     Toggle("Share anonymous usage statistics", isOn: $prefs.shareAnalytics)
                         .toggleStyle(.checkbox)
-                    Text("Sends at most one ping per day with the app version, macOS version, CPU architecture and a random install ID. No system metrics, processes or personal data.")
+                    Text("Sends at most three pings a day (app running, dropdown opened, window opened) with the app version, macOS version, CPU architecture and a random install ID. No system metrics, processes or personal data.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
