@@ -189,18 +189,20 @@
     animation: draw 900ms var(--ease-in-out) 1500ms backwards;
   }
 
-  /* Section parts rise as they scroll in; heading, text and fragment each on their own
-     timeline, so they arrive in reading order. `.late` holds back the right-hand part of a row. */
-  @supports (animation-timeline: view()) {
-    .enter {
-      animation: rise linear backwards;
-      animation-timing-function: var(--ease-snappy);
-      animation-timeline: view();
-      animation-range: entry 5% entry 75%;
-    }
-    .enter.late {
-      animation-range: entry 20% entry 95%;
-    }
+  /* Section parts rise once as they come into view (App adds .is-in from an IntersectionObserver),
+     each on its own, so they arrive in reading order; `.late` holds back the second part of a row.
+     Time-based, not scroll-linked: tying travel to the scroll made content trail the wheel. */
+  .enter:not(.is-in) {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  .enter {
+    transition:
+      opacity 700ms var(--ease-snappy),
+      transform 900ms var(--ease-snappy);
+  }
+  .enter.late {
+    transition-delay: 90ms;
   }
 }
 

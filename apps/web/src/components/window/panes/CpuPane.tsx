@@ -67,7 +67,7 @@ function CoreBars({ usage }: { usage: number[] }) {
           <div key={i} className="grid flex-1 justify-items-center gap-1">
             <div className="relative h-[90px] w-full overflow-hidden rounded-[3px]" style={{ background: `${color}26` }}>
               <div
-                className="absolute inset-x-0 bottom-0 rounded-[3px] transition-[height] duration-600 motion-reduce:transition-none"
+                className="absolute inset-x-0 bottom-0 rounded-[3px]"
                 style={{ height: `max(2px, ${value}%)`, background: color }}
               />
             </div>
