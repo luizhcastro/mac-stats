@@ -111,7 +111,7 @@ struct SoundPane: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(20)
+            .padding(24)
         }
     }
 }

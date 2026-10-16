@@ -12,7 +12,7 @@ struct CPUPane: View {
                     subtitle: "History range: \(range.label)",
                     trailing: AnyView(HistoryRangePicker(selection: $range))
                 )
-                MetricCard(title: "Total Usage", icon: "cpu") {
+                MetricCard(title: "Total usage", icon: "cpu") {
                     HStack(alignment: .firstTextBaseline) {
                         Text(Fmt.percent(stats.cpu.usage))
                             .font(.system(size: 36, weight: .semibold))
@@ -22,7 +22,7 @@ struct CPUPane: View {
                     AreaSpark(values: stats.history.cpu.values(for: range), max: 100, color: .blue, height: 160)
                         .equatable()
                 }
-                MetricCard(title: "Per-core Usage", icon: "rectangle.split.3x1") {
+                MetricCard(title: "Per-core usage", icon: "rectangle.split.3x1") {
                     if stats.cpu.cores.isEmpty {
                         // Window-tier sample not in yet: the card holds its place
                         RoundedRectangle(cornerRadius: 4)
@@ -35,7 +35,7 @@ struct CPUPane: View {
                             .padding(.top, 4)
                     }
                 }
-                MetricCard(title: "Load Average", icon: "gauge.with.dots.needle.50percent") {
+                MetricCard(title: "Load average", icon: "gauge.with.dots.needle.50percent") {
                     HStack(spacing: 28) {
                         LoadAvgStat(label: "1 min", value: stats.cpu.loadAverage.one)
                         LoadAvgStat(label: "5 min", value: stats.cpu.loadAverage.five)
@@ -60,7 +60,7 @@ struct CPUPane: View {
                             .monospacedDigit()
                     }
                 }
-                MetricCard(title: "Top CPU Processes", icon: "list.bullet") {
+                MetricCard(title: "Top CPU processes", icon: "list.bullet") {
                     LeaderList(
                         rows: stats.processLeaders.cpu.prefix(8).map {
                             LeaderRow(
@@ -172,7 +172,7 @@ struct MemoryPane: View {
                         }
                     }
                 }
-                MetricCard(title: "Top Memory Processes", icon: "list.bullet") {
+                MetricCard(title: "Top memory processes", icon: "list.bullet") {
                     LeaderList(
                         rows: stats.processLeaders.memory.prefix(8).map {
                             LeaderRow(id: "\($0.id)", pid: $0.id, name: $0.name, value: Fmt.bytes($0.memoryBytes))
@@ -255,7 +255,7 @@ struct DiskPane: View {
                         )
                     }
                 }
-                MetricCard(title: "Top Disk Processes", icon: "list.bullet") {
+                MetricCard(title: "Top disk processes", icon: "list.bullet") {
                     LeaderList(
                         rows: stats.processLeaders.disk.prefix(8).map {
                             LeaderRow(
@@ -343,14 +343,14 @@ struct NetworkPane: View {
                         }
                     }
                 }
-                MetricCard(title: "Session Totals", icon: "sum") {
+                MetricCard(title: "Session totals", icon: "sum") {
                     StatRow(label: "Total in", value: Fmt.bytes(stats.network.totalIn))
                     StatRow(label: "Total out", value: Fmt.bytes(stats.network.totalOut))
                     if let pip = stats.publicIP {
                         StatRow(label: "Public IP", value: pip)
                     }
                 }
-                MetricCard(title: "Top Network Processes", icon: "list.bullet") {
+                MetricCard(title: "Top network processes", icon: "list.bullet") {
                     LeaderList(
                         rows: stats.processLeaders.network.prefix(8).map {
                             LeaderRow(
@@ -387,7 +387,7 @@ struct BatteryPane: View {
                     ProgressView(value: stats.battery.percent / 100.0)
                 }
                 if hasHistory {
-                    MetricCard(title: "Charge History (last 30 min)", icon: "chart.xyaxis.line") {
+                    MetricCard(title: "Charge, last 30 min", icon: "chart.xyaxis.line") {
                         AreaSpark(
                             values: stats.history.batteryPercent,
                             max: 100,
@@ -396,7 +396,7 @@ struct BatteryPane: View {
                         )
                         .equatable()
                     }
-                    MetricCard(title: "Power History (last 30 min)", icon: "bolt") {
+                    MetricCard(title: "Power, last 30 min", icon: "bolt") {
                         CenteredSpark(
                             values: stats.history.batteryWattage,
                             color: .orange,
@@ -604,7 +604,7 @@ struct GPUPane: View {
                     }
                 }
                 if stats.temperature.gpuCelsius > 0 {
-                    MetricCard(title: "GPU Temperature", icon: "thermometer") {
+                    MetricCard(title: "GPU temperature", icon: "thermometer") {
                         Text(TemperaturePane.format(stats.temperature.gpuCelsius))
                             .font(.system(size: 22, weight: .semibold))
                             .monospacedDigit()

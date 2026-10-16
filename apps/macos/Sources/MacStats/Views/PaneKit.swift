@@ -29,7 +29,7 @@ struct PaneHeader: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 26, weight: .bold))
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline)
@@ -56,15 +56,15 @@ struct MetricCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Sentence case at headline weight, not tracked caps: reads as a
+            // title over the number instead of a label competing with it.
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .foregroundStyle(.secondary)
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
                 Spacer()
             }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.secondary)
             content
         }
         .padding(16)
