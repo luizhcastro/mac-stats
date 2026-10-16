@@ -12,7 +12,7 @@ export function IdleCost() {
 
   return (
     <section aria-labelledby="idle-title" className="mt-[clamp(6rem,14vw,12rem)] bg-surface">
-      <div className="page flex min-h-[88svh] flex-col py-[clamp(4rem,8vw,7rem)] max-md:min-h-[84svh]">
+      <div className="page flex min-h-[min(88svh,60rem)] flex-col py-[clamp(4rem,8vw,7rem)] max-md:min-h-[84svh]">
         <h2 id="idle-title" className="enter text-head leading-none font-bold tracking-[-0.035em]">
           How long is your Mac awake?
         </h2>
