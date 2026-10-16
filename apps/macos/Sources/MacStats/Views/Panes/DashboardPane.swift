@@ -12,7 +12,7 @@ struct DashboardPane: View {
             VStack(alignment: .leading, spacing: 0) {
                 PaneHeader(
                     title: "Overview",
-                    subtitle: "Live snapshot of system activity"
+                    subtitle: "Up \(Fmt.uptime(ProcessInfo.processInfo.systemUptime))"
                 )
                 LazyVGrid(columns: columns, spacing: 16) {
                     cpuCard

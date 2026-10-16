@@ -4,12 +4,21 @@ struct CPUPane: View {
     @ObservedObject var stats: SystemStats
     @State private var range: HistoryRange = .minute
 
+    /// "Apple M4". Read once: it never changes while the app runs.
+    private static let chip: String? = {
+        var size = 0
+        guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else { return nil }
+        return String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
+    }()
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PaneHeader(
                     title: "CPU",
-                    subtitle: "History range: \(range.label)",
+                    subtitle: [Self.chip, "\(ProcessInfo.processInfo.processorCount) cores"].compactMap { $0 }.joined(separator: " · "),
                     trailing: AnyView(HistoryRangePicker(selection: $range))
                 )
                 MetricCard(title: "Total usage", icon: "cpu") {
@@ -87,7 +96,7 @@ struct MemoryPane: View {
             VStack(alignment: .leading, spacing: 16) {
                 PaneHeader(
                     title: "Memory",
-                    subtitle: "History range: \(range.label)",
+                    subtitle: "\(Fmt.totalBytes(stats.memory.totalBytes)) installed",
                     trailing: AnyView(HistoryRangePicker(selection: $range))
                 )
                 MetricCard(title: "Used", icon: "memorychip") {
@@ -194,7 +203,9 @@ struct DiskPane: View {
             VStack(alignment: .leading, spacing: 16) {
                 PaneHeader(
                     title: "Disk",
-                    subtitle: "History range: \(range.label)",
+                    subtitle: stats.disk.capacityBytes > 0
+                        ? "\(Fmt.totalBytes(stats.disk.freeBytes)) available of \(Fmt.totalBytes(stats.disk.capacityBytes))"
+                        : nil,
                     trailing: AnyView(HistoryRangePicker(selection: $range))
                 )
                 MetricCard(title: "Throughput", icon: "internaldrive") {
@@ -282,7 +293,7 @@ struct NetworkPane: View {
             VStack(alignment: .leading, spacing: 16) {
                 PaneHeader(
                     title: "Network",
-                    subtitle: "History range: \(range.label)",
+                    subtitle: stats.wifi.ssid.map { "Wi-Fi: \($0)" },
                     trailing: AnyView(HistoryRangePicker(selection: $range))
                 )
                 MetricCard(title: "Throughput", icon: "network") {

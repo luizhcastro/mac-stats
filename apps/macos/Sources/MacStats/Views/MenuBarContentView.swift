@@ -69,8 +69,9 @@ struct MenuBarContentView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("MacStats")
                     .font(.headline)
-                Text("System monitor")
+                Text("Up \(Fmt.uptime(ProcessInfo.processInfo.systemUptime))")
                     .font(.caption)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             Spacer()
