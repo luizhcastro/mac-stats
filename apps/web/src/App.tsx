@@ -32,7 +32,7 @@ export function App() {
         <MainWindow stats={stats} mixer={mixer} visible={visibleMetrics} onToggleMetric={toggleMetric} />
         <Features stats={stats} mixer={mixer} visible={visibleMetrics} onToggleMetric={toggleMetric} />
         <IdleCost />
-        <Install stats={stats} visible={visibleMetrics} />
+        <Install />
       </main>
       <Footer />
     </>
