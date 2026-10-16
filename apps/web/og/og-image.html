@@ -13,14 +13,12 @@
         height: 630px;
         overflow: hidden;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", sans-serif;
-        color: #fff;
+        color: #ededee;
         -webkit-font-smoothing: antialiased;
-        background:
-          radial-gradient(45% 55% at 88% 0%, rgb(255 255 255 / 0.2), transparent 70%),
-          radial-gradient(50% 60% at 0% 40%, rgb(185 190 198 / 0.16), transparent 70%),
-          radial-gradient(40% 50% at 60% 110%, rgb(255 255 255 / 0.1), transparent 70%),
-          linear-gradient(160deg, #3a3e45 0%, #2a2e35 35%, #1d2026 70%, #121417 100%);
+        /* Same palette as the site (src/index.css): graphite ground, jade stage under the dropdown */
+        background: #141619;
       }
+      .stage { position: absolute; top: 40px; right: 0; bottom: 0; width: 520px; border-top-left-radius: 140px; background: #9fc7b8; }
       .glass {
         background: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.05));
         backdrop-filter: blur(28px) saturate(180%);
@@ -39,10 +37,10 @@
       /* Left: brand + headline */
       .copy { position: absolute; left: 72px; top: 118px; width: 560px; }
       .brand { display: flex; align-items: center; gap: 18px; margin-bottom: 36px; }
-      .brand img { width: 88px; height: 88px; filter: drop-shadow(0 16px 28px rgb(0 0 0 / 0.5)); }
+      .brand img { width: 88px; height: 88px; }
       .brand span { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
-      h1 { font-size: 66px; line-height: 1.02; font-weight: 700; letter-spacing: -0.035em; }
-      .sub { margin-top: 26px; font-size: 24px; color: rgb(235 235 245 / 0.6); }
+      h1 { font-size: 68px; line-height: 0.98; font-weight: 700; letter-spacing: -0.04em; }
+      .sub { margin-top: 28px; font-size: 25px; line-height: 1.3; }
 
       /* Right: the dropdown, cropped by the bottom edge */
       .popover {
@@ -82,6 +80,8 @@
       <symbol id="net" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c2 2 2.6 4 2.6 6.5S10 12.5 8 14.5M8 1.5C6 3.5 5.4 5.5 5.4 8S6 12.5 8 14.5"/></symbol>
       <symbol id="win" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M1.5 5.5h13"/></symbol>
     </svg>
+
+    <div class="stage"></div>
 
     <div class="menubar glass">
       <img src="../public/icon.png" alt="" width="20" height="20" />
