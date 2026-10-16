@@ -1025,7 +1025,7 @@ struct LeaderList: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Spacer()
-                    Text("\(r.pid)")
+                    Text(verbatim: "\(r.pid)")
                         .monospacedDigit()
                         .font(.caption)
                         .foregroundStyle(.tertiary)

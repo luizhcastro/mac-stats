@@ -240,7 +240,7 @@ private struct ProcessRowView: View, Equatable {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("\(row.pid)")
+            Text(verbatim: "\(row.pid)")
                 .monospacedDigit()
                 .frame(width: 70, alignment: .trailing)
             Text(String(format: "%.2f%%", row.cpuPercent))
