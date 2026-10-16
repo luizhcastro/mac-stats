@@ -6,12 +6,13 @@ import { historyFor, type HistoryRange } from '../../lib/history'
 import type { BarMetric, ProcessTab } from '../../lib/metrics'
 import type { Mixer } from '../../lib/mixer'
 import { AreaChart } from '../charts/AreaChart'
+import { Icon, type IconName } from '../Icon'
 import { StatusItems } from '../menubar/MenuBar'
 import { MenuBarPrefs } from '../popover/MenuBarPrefs'
 import { MixerRows } from '../popover/MixerRows'
-import { Caption, Section } from '../popover/Section'
+import { Caption } from '../popover/Section'
 import { TopProcesses } from '../popover/TopProcesses'
-import { RangePicker, Value } from '../window/PaneKit'
+import { RangePicker } from '../window/PaneKit'
 
 type FeaturesProps = {
   stats: LiveStats
@@ -21,8 +22,10 @@ type FeaturesProps = {
 }
 
 /**
- * One capability per row: a small working piece of the app on the left, what it does on the
- * right. The pieces share state with the replicas above (menu bar items, mixer volumes).
+ * A bento of capabilities: each is a small working piece of the app with what it does under
+ * it. Three across on wide screens, history spanning two. The pieces share state with the
+ * replicas above (menu bar items, mixer volumes). Their section headers are fixed, not the
+ * dropdown's collapsible ones: folding one would resize every panel in its row.
  */
 export function Features({ stats, mixer, visible, onToggleMetric }: FeaturesProps) {
   const [tab, setTab] = useState<ProcessTab>('ram')
@@ -36,8 +39,12 @@ export function Features({ stats, mixer, visible, onToggleMetric }: FeaturesProp
         What you get
       </h2>
 
-      <div className="mt-16 grid gap-[clamp(4rem,9vw,7.5rem)] lg:pl-[12%]">
+      {/* Each feature spans two rows of a subgrid (panel, then text), so the panels in a row share
+          one height and the titles under them share one baseline, whatever their content */}
+      <div className="mt-16 grid grid-flow-dense gap-x-5 gap-y-14 md:grid-cols-2 lg:grid-cols-3">
         <Feature
+          icon="menubar"
+          label="Menu bar"
           title="Pick what sits in the bar"
           fragment={
             <div className="grid gap-4">
@@ -48,94 +55,101 @@ export function Features({ stats, mixer, visible, onToggleMetric }: FeaturesProp
             </div>
           }
         >
-          <p>
-            CPU, temperature, RAM, disk and network are separate menu bar items, so a crowded bar hides them one at a time
-            instead of all at once.
-          </p>
-          <p>Untick one here and watch the bar at the top of this page.</p>
+          Each metric is its own menu bar item, so a crowded bar hides them one at a time. Untick one here and watch the
+          bar at the top.
         </Feature>
 
         <Feature
+          icon="list"
+          label="Top processes"
           title="See which app is using it"
-          fragment={
-            <Section icon="list" title="Top processes" defaultOpen>
-              <TopProcesses tab={tab} onTabChange={setTab} processes={stats.processes} />
-            </Section>
-          }
+          fragment={<TopProcesses tab={tab} onTabChange={setTab} processes={stats.processes} />}
         >
-          <p>
-            The dropdown lists the top processes by CPU, memory, disk, network and energy, and opens on the tab of the item
-            you clicked.
-          </p>
-          <p>Every section folds away, so it stays as short as you like.</p>
+          Top processes by CPU, memory, disk, network and energy. The dropdown opens on the tab of the item you clicked.
         </Feature>
 
         <Feature
+          icon="speaker"
+          label="Sound"
+          value={<Caption>{playing === 0 ? 'silent' : `${playing} playing`}</Caption>}
           title="A volume slider for every app"
-          fragment={
-            <Section icon="speaker" title="Sound" value={<Caption>{playing === 0 ? 'silent' : `${playing} playing`}</Caption>} defaultOpen>
-              <MixerRows mixer={mixer} compact />
-            </Section>
-          }
+          fragment={<MixerRows mixer={mixer} compact />}
         >
-          <p>
-            Each app that plays sound gets its own slider and mute, like the Windows mixer. MacStats remembers the level
-            and applies it the next time the app plays.
-          </p>
-          <p>Needs macOS 14.4 or later.</p>
+          Each app that plays sound gets its own slider and mute, remembered for next time. Needs macOS 14.4.
         </Feature>
 
         <Feature
+          wide
+          icon="cpu"
+          label="CPU"
+          value={
+            <span className="flex items-center gap-3">
+              <span className="tabular-nums">{formatPercent(stats.cpu.total)}</span>
+              <RangePicker value={range} onChange={setRange} />
+            </span>
+          }
           title="The last minute, hour or day"
+          fragment={<AreaChart series={[{ values: historyFor(stats, 'cpu', range), color: SYSTEM_COLORS.blue }]} max={100} height={150} />}
+        >
+          Charts in the main window switch between the last minute, hour and day, so you can see what spiked while you
+          were away.
+        </Feature>
+
+        <Feature
+          icon="gear"
+          label="Privacy"
+          title="No account, no ads"
           fragment={
-            <div className="grid gap-3">
-              <div className="flex items-center justify-between gap-4">
-                <Value size={24}>{formatPercent(stats.cpu.total)}</Value>
-                <RangePicker value={range} onChange={setRange} />
-              </div>
-              <AreaChart series={[{ values: historyFor(stats, 'cpu', range), color: SYSTEM_COLORS.blue }]} max={100} height={150} />
+            <div className="grid gap-2">
+              <label className="flex cursor-pointer items-center justify-between gap-4">
+                Share anonymous usage statistics
+                <input type="checkbox" checked={shareStats} onChange={(e) => setShareStats(e.target.checked)} className="peer sr-only" />
+                <span
+                  aria-hidden="true"
+                  className="relative h-[22px] w-[38px] flex-none rounded-full bg-white/15 transition-colors duration-300 ease-snappy peer-checked:bg-[#30d158] peer-focus-visible:outline-3 peer-focus-visible:outline-white/60 after:absolute after:top-0.5 after:left-0.5 after:size-[18px] after:rounded-full after:bg-white after:transition-transform after:duration-300 after:ease-snappy peer-checked:after:translate-x-4 motion-reduce:after:transition-none"
+                />
+              </label>
+              {/* SettingsPane.swift's caption */}
+              <p className="text-xs leading-snug text-secondary">
+                At most three pings a day with the app version, macOS version, CPU architecture and a random install ID. No
+                system metrics, processes or personal data.
+              </p>
             </div>
           }
         >
-          <p>
-            Charts in the main window switch between the last minute, hour and day, so you can see what spiked while you
-            were away.
-          </p>
-          <p>CPU, memory, network, disk and temperature all keep their history.</p>
-        </Feature>
-
-        <Feature
-          title="No account, no ads"
-          fragment={
-            <label className="flex cursor-pointer items-center justify-between gap-4 text-[13px]">
-              Share anonymous usage statistics
-              <input type="checkbox" checked={shareStats} onChange={(e) => setShareStats(e.target.checked)} className="peer sr-only" />
-              <span
-                aria-hidden="true"
-                className="relative h-[22px] w-[38px] flex-none rounded-full bg-white/15 transition-colors duration-300 ease-snappy peer-checked:bg-[#30d158] peer-focus-visible:outline-3 peer-focus-visible:outline-white/60 after:absolute after:top-0.5 after:left-0.5 after:size-[18px] after:rounded-full after:bg-white after:transition-transform after:duration-300 after:ease-snappy peer-checked:after:translate-x-4 motion-reduce:after:transition-none"
-              />
-            </label>
-          }
-        >
-          <p>MacStats is free and MIT licensed. Updates come through Sparkle, straight from the GitHub releases.</p>
-          <p>It sends at most three anonymous usage pings a day. One switch in Settings turns them off.</p>
+          Free and MIT licensed. At most three anonymous usage pings a day, and one switch in Settings turns them off.
         </Feature>
       </div>
     </section>
   )
 }
 
-type FeatureProps = { title: string; fragment: ReactNode; children: ReactNode }
+type FeatureProps = {
+  /** The panel's header, like the app's own section headers */
+  icon: IconName
+  label: string
+  value?: ReactNode
+  fragment: ReactNode
+  /** The text under the panel */
+  title: string
+  children: ReactNode
+  wide?: boolean
+}
 
-function Feature({ title, fragment, children }: FeatureProps) {
+function Feature({ icon, label, value, fragment, title, children, wide = false }: FeatureProps) {
   return (
-    <article className="grid max-w-[25rem] items-start lg:max-w-none gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,25rem)_minmax(0,22rem)]">
+    <article className={`row-span-2 grid grid-rows-subgrid gap-y-6 ${wide ? 'md:col-span-2' : ''}`}>
       <div data-ui className="enter rounded-2xl bg-surface p-5 text-[13px] leading-[1.3] text-label">
-        {fragment}
+        <div className="flex h-6 items-center gap-2 font-semibold">
+          <Icon name={icon} className="size-[15px]" />
+          <span className="flex-1">{label}</span>
+          {value}
+        </div>
+        <div className="mt-3">{fragment}</div>
       </div>
-      <div className="enter late">
+      <div className="enter late max-w-[34em]">
         <h3 className="text-lead leading-tight font-semibold tracking-[-0.015em]">{title}</h3>
-        <div className="mt-3 grid gap-3">{children}</div>
+        <p className="mt-2">{children}</p>
       </div>
     </article>
   )
