@@ -5,7 +5,7 @@ export function Sparkline({ values, max }: { values: number[]; max: number }) {
     .join(' ')
 
   return (
-    <svg viewBox="0 0 100 28" preserveAspectRatio="none" className="h-7 w-full" aria-hidden="true">
+    <svg viewBox="0 0 100 28" preserveAspectRatio="none" className="spark-draw h-7 w-full" aria-hidden="true">
       <polyline points={points} className="fill-none stroke-accent stroke-[1.5]" vectorEffect="non-scaling-stroke" />
     </svg>
   )

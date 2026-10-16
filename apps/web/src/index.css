@@ -138,18 +138,55 @@
 /* Page motion. Everything is visible without it: entrances only add a starting offset, so
    browsers without scroll timelines (or with Reduce Motion) just show the finished state. */
 @media (prefers-reduced-motion: no-preference) {
-  /* Hero load: the headline lines, sentence and actions rise in order (--i sets the order) */
+  /* First load, one sequence that acts out the product (ms from first paint):
+       0  the menu bar slides down
+     200  status items fill in from the clock leftward
+     250  the headline lines slide up out of their own baselines
+     480  sentence, actions, notes rise
+     850  the anchored item is "clicked": it dips and stays highlighted
+     900  the grey spreads out of that item in a circle until it fills the stage
+          (the signature move; --stage-ox/--stage-oy put the centre on the item)
+    1050  the dropdown grows out of its arrow under the item
+    1500  the CPU sparkline draws left to right */
+  .bar-enter {
+    animation: bar-down 450ms var(--ease-snappy) backwards;
+  }
+  .bar-enter [data-ui] > * {
+    animation: item-in 380ms var(--ease-snappy) backwards;
+    animation-delay: calc(var(--i, 0) * 55ms + 200ms);
+  }
+  .bar-enter .press-enter {
+    animation:
+      item-in 380ms var(--ease-snappy) calc(var(--i, 0) * 55ms + 200ms) backwards,
+      press 260ms ease-out 850ms backwards;
+  }
+
+  .lines .line {
+    display: block;
+    overflow: hidden;
+    /* room for ascenders and descenders, which the 0.95 leading pushes past the line box */
+    padding-block: 0.12em;
+    margin-block: -0.12em;
+  }
+  .lines .line > span {
+    display: block;
+    animation: line-up 950ms var(--ease-snappy) backwards;
+    animation-delay: calc(var(--i, 0) * 110ms + 250ms);
+  }
+
   .rise {
     animation: rise 800ms var(--ease-snappy) backwards;
     animation-delay: calc(var(--i, 0) * 90ms + 120ms);
   }
 
-  /* Signature move: the stage drops open from the menu bar like the dropdown it holds */
   .shutter {
-    animation: shutter 1100ms var(--ease-in-out) backwards;
+    animation: spread 1300ms var(--ease-snappy) 900ms backwards;
   }
   .popover-enter {
-    animation: popover-in 260ms var(--ease-snappy) 750ms backwards;
+    animation: popover-grow 380ms var(--ease-snappy) 1050ms backwards;
+  }
+  .spark-draw {
+    animation: draw 900ms var(--ease-in-out) 1500ms backwards;
   }
 
   /* Section parts rise as they scroll in; heading, text and fragment each on their own
@@ -174,9 +211,65 @@
   }
 }
 
-@keyframes shutter {
+/* clip-path needs both ends: a shape → none doesn't interpolate, it jumps halfway */
+@keyframes spread {
   from {
-    clip-path: inset(0 0 100% 0);
+    clip-path: circle(0 at var(--stage-ox, 50%) var(--stage-oy, 0));
+  }
+  to {
+    clip-path: circle(150% at var(--stage-ox, 50%) var(--stage-oy, 0));
+  }
+}
+
+@keyframes bar-down {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.85);
+  }
+}
+
+@keyframes press {
+  0% {
+    background-color: transparent;
+  }
+  35% {
+    transform: scale(0.88);
+  }
+}
+
+@keyframes line-up {
+  from {
+    transform: translateY(110%);
+  }
+}
+
+/* NSPopover's open: a quick fade while it scales up out of its arrow (transform-origin) */
+@keyframes popover-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* Applications taking the dropped app in the install window */
+@keyframes folder-take {
+  40% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes draw {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
   }
 }
 

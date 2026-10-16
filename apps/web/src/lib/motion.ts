@@ -1,4 +1,4 @@
 import type { CSSProperties } from 'react'
 
-/** Entrance order for `.rise` (index.css): each step starts 90ms after the previous one */
+/** Entrance order for the first-load sequence in index.css (`--i` on `.rise`, headline lines, status items) */
 export const order = (i: number) => ({ '--i': i }) as CSSProperties

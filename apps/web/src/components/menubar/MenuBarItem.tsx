@@ -1,4 +1,4 @@
-import type { Ref } from 'react'
+import type { CSSProperties, Ref } from 'react'
 import { Icon, type IconName } from '../Icon'
 
 type MenuBarItemProps = {
@@ -6,6 +6,11 @@ type MenuBarItemProps = {
   /** Metric id, reported to analytics when the item is clicked */
   metric: string
   onClick: () => void
+  /** Highlighted while its dropdown is open, like an NSStatusItem button */
+  active?: boolean
+  /** Act out the load sequence's click (index.css .press-enter); only for the first open */
+  introClick?: boolean
+  style?: CSSProperties
   ref?: Ref<HTMLButtonElement>
 } & ({ icon: IconName; value: string; width: number } | { appIcon: true })
 
@@ -22,10 +27,13 @@ export function MenuBarItem(props: MenuBarItemProps) {
       data-umami-event="Menu bar item"
       data-umami-event-metric={props.metric}
       onClick={props.onClick}
-      className="flex h-6 cursor-pointer flex-col items-center justify-center rounded-md px-1 text-[9px] leading-none font-bold tabular-nums hover:bg-white/18"
+      style={props.style}
+      className={`flex h-6 cursor-pointer flex-col items-center justify-center rounded-md px-1 text-[9px] leading-none font-bold tabular-nums hover:bg-white/18 ${
+        props.active ? `bg-white/18 ${props.introClick ? 'press-enter' : ''}` : ''
+      }`}
     >
       {'appIcon' in props ? (
-        <img src="/icon.png" alt="" className="size-[17px]" />
+        <img src="/icon.webp" width={17} height={17} alt="" className="size-[17px]" />
       ) : (
         <>
           <Icon name={props.icon} className="size-2.5 stroke-[1.7]" />
