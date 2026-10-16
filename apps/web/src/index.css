@@ -1,10 +1,21 @@
 @import "tailwindcss";
 
-/* macOS 26 dark appearance: system label colors and the SF system font stack */
 @theme {
+  /* The SF system font stack: the page is set in the same face as the app it shows */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", monospace;
 
+  /* Page palette: graphite ground from the icon, near-white ink, one pale jade "stage" that the
+     product fragments sit on (and the download button). Nothing else on the page carries colour;
+     the app's own charts do. */
+  --color-ground: #141619;
+  --color-surface: #1d2024;
+  --color-ink: #ededee;
+  --color-muted: #9a9fa8;
+  --color-stage: #9fc7b8;
+  --color-stage-strong: #b6d7cb;
+  --color-on-stage: #141619;
+
+  /* macOS 26 dark appearance, used inside the app replicas only */
   --color-label: #fff;
   --color-secondary: rgb(235 235 245 / 0.6);
   --color-tertiary: rgb(235 235 245 / 0.3);
@@ -13,12 +24,20 @@
   --color-on-accent: #1c1c1e;
   --color-nominal: #30d158;
 
+  /* Five steps of page type; the app replicas keep their own true sizes */
+  --text-small: 0.875rem;
+  --text-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --text-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --text-head: clamp(2rem, 1.3rem + 3.2vw, 4rem);
+  --text-display: clamp(2.5rem, 5.6vw + 0.5rem, 5rem);
+
   /* Below this width the dropdown stops floating under the menu bar and sits in the page flow */
   --breakpoint-desk: 1180px;
 
   /* Motion, mirroring `Motion` in PaneKit.swift: one strong ease-out for every UI state change,
      ~300ms (the app's critically damped spring), and a fade + 4px drop for content arriving. */
   --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
   --animate-reveal: reveal 300ms var(--ease-snappy);
   --animate-popover-in: popover-in 220ms var(--ease-snappy);
 
@@ -49,14 +68,21 @@
   }
 }
 
-/* Liquid glass: translucent fill, heavy blur + saturation, a bright specular rim on top,
-   a faint one at the bottom, and a soft drop shadow so it floats over the wallpaper.
+/* One container for every section: same max width, same pair of margins */
+@utility page {
+  margin-inline: auto;
+  max-width: 1280px;
+  padding-inline: clamp(1.25rem, 4vw, 3rem);
+}
+
+/* Liquid glass, for the app replicas only (menu bar, dropdown, main window): translucent fill,
+   heavy blur + saturation, a bright specular rim on top, a faint one at the bottom.
    Override the tint with `[--glass-fill:…]` or the `glass-dark` utility. */
 @utility glass {
-  background: var(--glass-fill, linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.05)));
-  backdrop-filter: blur(28px) saturate(180%);
+  background: var(--glass-fill, linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.05))); /* taste-skill-ignore: macOS Liquid Glass replica */
+  backdrop-filter: blur(28px) saturate(180%); /* taste-skill-ignore: macOS Liquid Glass replica */
   border: 0.5px solid rgb(255 255 255 / 0.28);
-  box-shadow:
+  box-shadow: /* taste-skill-ignore: macOS Liquid Glass replica */
     inset 0 1px 0 rgb(255 255 255 / 0.45),
     inset 0 -1px 0 rgb(255 255 255 / 0.08),
     inset 0 0 20px rgb(255 255 255 / 0.04),
@@ -65,7 +91,88 @@
 
 /* Darker tint for dense content (the dropdown), same glass otherwise */
 @utility glass-dark {
-  --glass-fill: linear-gradient(180deg, rgb(44 44 48 / 0.6), rgb(22 22 24 / 0.65));
+  --glass-fill: linear-gradient(180deg, rgb(44 44 48 / 0.6), rgb(22 22 24 / 0.65)); /* taste-skill-ignore: macOS Liquid Glass replica */
+}
+
+/* The one primary action: flat jade capsule that gives a little on press */
+@utility button {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background-color: var(--color-stage);
+  color: var(--color-on-stage);
+  padding: 0.8rem 1.5rem;
+  font-weight: 600;
+  transition:
+    transform 140ms var(--ease-snappy),
+    background-color 180ms ease;
+  &:active {
+    transform: scale(0.97);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background-color: var(--color-stage-strong);
+    }
+  }
+}
+
+/* Text links: underlined, the underline brightens under the pointer */
+@utility link {
+  text-decoration: underline;
+  text-decoration-color: rgb(237 237 238 / 0.35);
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 0.07em;
+  transition: text-decoration-color 180ms ease;
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      text-decoration-color: currentColor;
+    }
+  }
+}
+
+/* Page motion. Everything is visible without it: entrances only add a starting offset, so
+   browsers without scroll timelines (or with Reduce Motion) just show the finished state. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Hero load: the headline lines, sentence and actions rise in order (--i sets the order) */
+  .rise {
+    animation: rise 800ms var(--ease-snappy) backwards;
+    animation-delay: calc(var(--i, 0) * 90ms + 120ms);
+  }
+
+  /* Signature move: the stage drops open from the menu bar like the dropdown it holds */
+  .shutter {
+    animation: shutter 1100ms var(--ease-in-out) backwards;
+  }
+  .popover-enter {
+    animation: popover-in 260ms var(--ease-snappy) 750ms backwards;
+  }
+
+  /* Section parts rise as they scroll in; heading, text and fragment each on their own
+     timeline, so they arrive in reading order. `.late` holds back the right-hand part of a row. */
+  @supports (animation-timeline: view()) {
+    .enter {
+      animation: rise linear backwards;
+      animation-timing-function: var(--ease-snappy);
+      animation-timeline: view();
+      animation-range: entry 5% entry 75%;
+    }
+    .enter.late {
+      animation-range: entry 20% entry 95%;
+    }
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+@keyframes shutter {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
 }
 
 @layer base {
@@ -80,16 +187,18 @@
   }
 
   body {
-    @apply min-h-screen font-sans text-[17px] leading-normal text-label antialiased;
-    /* Graphite wallpaper (the icon's base gradient) with soft light pools for the glass to refract.
-       Spans the whole page, not fixed, so the window below the fold has something behind it. */
-    background:
-      radial-gradient(45% 22% at 85% 4%, rgb(255 255 255 / 0.16), transparent 70%),
-      radial-gradient(50% 25% at 8% 18%, rgb(185 190 198 / 0.14), transparent 70%),
-      radial-gradient(55% 20% at 70% 40%, rgb(255 255 255 / 0.08), transparent 70%),
-      radial-gradient(50% 22% at 12% 60%, rgb(185 190 198 / 0.12), transparent 70%),
-      radial-gradient(55% 20% at 90% 78%, rgb(255 255 255 / 0.1), transparent 70%),
-      linear-gradient(170deg, #3a3e45 0%, #2a2e35 30%, #1d2026 65%, #121417 100%);
+    @apply min-h-svh bg-ground font-sans text-body text-ink antialiased;
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   :focus-visible {
