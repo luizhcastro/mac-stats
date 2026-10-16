@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 
 /** Line-art stand-ins for the SF Symbols the app uses, drawn on a 16×16 grid */
 const PATHS = {
@@ -159,6 +159,28 @@ export function AppleLogo() {
   return (
     <svg viewBox="0 0 14 17" className="h-4 w-[13px] fill-white" aria-hidden="true">
       <path d="M11.6 9c0-2 1.7-3 1.8-3a3.9 3.9 0 0 0-3-1.7c-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7A4.1 4.1 0 0 0 .9 6.5c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1s1.4-.7 2.7-.7 1.6.7 2.7.7 1.8-1 2.5-2a8.6 8.6 0 0 0 1.1-2.3A3.6 3.6 0 0 1 11.6 9ZM9.5 2.8A3.6 3.6 0 0 0 10.4 0 3.8 3.8 0 0 0 8 1.3a3.5 3.5 0 0 0-.9 2.6 3.1 3.1 0 0 0 2.4-1.1Z" />
+    </svg>
+  )
+}
+
+/**
+ * The menu bar's single-colour app icon, same 16-unit drawing as `AppIconLabel` in
+ * SingleMetricLabel.swift: the icon's superellipse tile in the current colour with its three
+ * rings and centre dot cut out.
+ */
+const GLYPH_TILE = 'M16.00 8.00L15.99 8.76L15.94 9.38L15.87 9.96L15.76 10.49L15.63 11.01L15.47 11.50L15.28 11.96L15.07 12.40L14.82 12.82L14.55 13.22L14.26 13.59L13.93 13.93L13.59 14.26L13.22 14.55L12.82 14.82L12.40 15.07L11.96 15.28L11.50 15.47L11.01 15.63L10.49 15.76L9.96 15.87L9.38 15.94L8.76 15.99L8.00 16.00L7.24 15.99L6.62 15.94L6.04 15.87L5.51 15.76L4.99 15.63L4.50 15.47L4.04 15.28L3.60 15.07L3.18 14.82L2.78 14.55L2.41 14.26L2.07 13.93L1.74 13.59L1.45 13.22L1.18 12.82L0.93 12.40L0.72 11.96L0.53 11.50L0.37 11.01L0.24 10.49L0.13 9.96L0.06 9.38L0.01 8.76L0.00 8.00L0.01 7.24L0.06 6.62L0.13 6.04L0.24 5.51L0.37 4.99L0.53 4.50L0.72 4.04L0.93 3.60L1.18 3.18L1.45 2.78L1.74 2.41L2.07 2.07L2.41 1.74L2.78 1.45L3.18 1.18L3.60 0.93L4.04 0.72L4.50 0.53L4.99 0.37L5.51 0.24L6.04 0.13L6.62 0.06L7.24 0.01L8.00 0.00L8.76 0.01L9.38 0.06L9.96 0.13L10.49 0.24L11.01 0.37L11.50 0.53L11.96 0.72L12.40 0.93L12.82 1.18L13.22 1.45L13.59 1.74L13.93 2.07L14.26 2.41L14.55 2.78L14.82 3.18L15.07 3.60L15.28 4.04L15.47 4.50L15.63 4.99L15.76 5.51L15.87 6.04L15.94 6.62L15.99 7.24Z'
+const GLYPH_RINGS = 'M8 3A5 5 0 1 1 3.01 8.25 M8 4.4A3.6 3.6 0 1 1 6.19 11.11 M8 5.8A2.2 2.2 0 0 1 9.10 9.91'
+
+export function AppGlyph({ className = 'size-4' }: { className?: string }) {
+  const mask = useId()
+  return (
+    <svg viewBox="0 0 16 16" className={className} aria-hidden="true">
+      <mask id={mask}>
+        <path d={GLYPH_TILE} fill="white" />
+        <path d={GLYPH_RINGS} fill="none" stroke="black" strokeWidth="0.85" strokeLinecap="round" />
+        <circle cx="8" cy="8" r="0.7" fill="black" />
+      </mask>
+      <path d={GLYPH_TILE} fill="currentColor" mask={`url(#${mask})`} />
     </svg>
   )
 }
