@@ -4,16 +4,17 @@
   /* The SF system font stack: the page is set in the same face as the app it shows */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", system-ui, sans-serif;
 
-  /* Page palette: graphite ground from the icon, near-white ink, one pale jade "stage" that the
-     product fragments sit on (and the download button). Nothing else on the page carries colour;
-     the app's own charts do. */
+  /* Page palette, the icon's own: graphite ground, near-white ink, a light cool grey "stage" the
+     product fragments sit on, and a white download button. Nothing else on the page carries
+     colour; the app's own charts do. */
   --color-ground: #141619;
   --color-surface: #1d2024;
   --color-ink: #ededee;
   --color-muted: #9a9fa8;
-  --color-stage: #9fc7b8;
-  --color-stage-strong: #b6d7cb;
+  --color-stage: #d5d8dd;
   --color-on-stage: #141619;
+  --color-action: #f2f2f4;
+  --color-action-strong: #ffffff;
 
   /* macOS 26 dark appearance, used inside the app replicas only */
   --color-label: #fff;
@@ -89,17 +90,21 @@
     0 18px 50px rgb(0 0 0 / 0.35);
 }
 
-/* Darker tint for dense content (the dropdown), same glass otherwise */
+/* Dark-mode material for the dropdown and windows. Mostly opaque, like the real one over a light
+   wallpaper: they sit on the light grey stage, and a thinner tint washes out to mid grey. */
 @utility glass-dark {
-  --glass-fill: linear-gradient(180deg, rgb(44 44 48 / 0.6), rgb(22 22 24 / 0.65)); /* taste-skill-ignore: macOS Liquid Glass replica */
+  --glass-fill: linear-gradient(180deg, rgb(40 40 44 / 0.86), rgb(24 24 26 / 0.9)); /* taste-skill-ignore: macOS Liquid Glass replica */
+  /* At this opacity over a flat stage a live blur shows nothing, and on big surfaces (the whole
+     main window) it's what makes phones stutter while scrolling */
+  backdrop-filter: none;
 }
 
-/* The one primary action: flat jade capsule that gives a little on press */
+/* The one primary action: flat white capsule that gives a little on press */
 @utility button {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  background-color: var(--color-stage);
+  background-color: var(--color-action);
   color: var(--color-on-stage);
   padding: 0.8rem 1.5rem;
   font-weight: 600;
@@ -111,7 +116,7 @@
   }
   @media (hover: hover) and (pointer: fine) {
     &:hover {
-      background-color: var(--color-stage-strong);
+      background-color: var(--color-action-strong);
     }
   }
 }

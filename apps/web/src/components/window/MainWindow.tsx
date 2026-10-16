@@ -59,7 +59,7 @@ export function MainWindow({ stats, mixer, visible, onToggleMetric }: MainWindow
         </p>
       </div>
 
-      {/* The window sits on the same jade stage as the dropdown, bleeding off the right edge */}
+      {/* The window sits on the same grey stage as the dropdown, bleeding off the right edge */}
       <div className="mt-14 ml-[max(0px,calc((100vw-1280px)/2))] rounded-tl-[160px] bg-stage py-[clamp(1.25rem,5vw,5rem)] pr-[clamp(1.25rem,4vw,3rem)] pl-[clamp(1.25rem,6vw,6rem)] max-md:rounded-tl-[72px] max-md:px-3">
         <div
           data-ui
