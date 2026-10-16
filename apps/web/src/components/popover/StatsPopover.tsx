@@ -42,7 +42,7 @@ export function StatsPopover({ stats, mixer, position, anchor, tab, onTabChange 
     }
     const el = ref.current
     if (!el || !position) return
-    el.classList.remove('animate-popover-in')
+    el.classList.remove('popover-enter', 'animate-popover-in')
     void el.offsetWidth // restart the animation
     el.classList.add('animate-popover-in')
   }, [anchor])
@@ -50,10 +50,11 @@ export function StatsPopover({ stats, mixer, position, anchor, tab, onTabChange 
   return (
     <div
       ref={ref}
+      data-ui
       aria-label="MacStats dropdown preview"
       style={position ? { left: position.left, transformOrigin: `${position.arrow}px 0` } : undefined}
-      className={`glass glass-dark w-[min(340px,100%)] rounded-[22px] p-3.5 text-[13px] leading-[1.3] ${
-        position ? 'absolute top-[38px] z-20' : 'relative mx-auto mt-12 md:mt-16'
+      className={`popover-enter glass glass-dark w-[min(340px,100%)] rounded-[22px] p-3.5 text-[13px] leading-[1.3] ${
+        position ? 'absolute top-[38px] z-20' : 'relative mx-auto'
       }`}
     >
       <PopoverArrow left={position?.arrow} />

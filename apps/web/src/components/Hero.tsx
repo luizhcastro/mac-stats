@@ -1,32 +1,34 @@
 import { REPO_URL } from '../lib/links'
+import { order } from '../lib/motion'
 import { DownloadButton } from './DownloadButton'
 
 export function Hero() {
   return (
-    <section className="pt-32 max-desk:pt-16">
-      <img
-        src="/icon.png"
-        alt="MacStats icon"
-        className="mb-8 size-28 max-sm:mb-6 max-sm:size-20 drop-shadow-[0_18px_30px_rgb(0_0_0/0.5)]"
-      />
-      <h1 className="max-w-[11ch] text-[clamp(2.8rem,6.5vw,5.4rem)] leading-[1.02] font-bold tracking-[-0.035em]">
-        Your Mac’s vitals, one glance away.
+    <section className="pt-32 max-desk:pt-16 desk:max-w-[36rem]">
+      <img src="/icon.png" alt="MacStats icon" className="rise mb-8 size-20 max-sm:mb-6 max-sm:size-16" />
+      <h1 className="text-display leading-[0.95] font-bold tracking-[-0.04em]">
+        <span className="rise block" style={order(1)}>
+          Your Mac’s vitals,
+        </span>
+        <span className="rise block" style={order(2)}>
+          one glance away.
+        </span>
       </h1>
-      <p className="mt-6 mb-9 max-w-[32em] text-[1.2rem] text-secondary">
-        MacStats puts CPU, temperature, memory, disk and network in the menu bar. Click any of them to see which
-        apps are using it, without opening Activity Monitor. Free, with no account and no ads.
+      <p className="rise mt-7 max-w-[30em] text-lead leading-snug" style={order(3)}>
+        CPU, temperature, memory, disk and network live in your menu bar. Click one to see which apps are using it.
       </p>
 
-      <div className="flex flex-wrap items-center gap-6">
+      <div className="rise mt-9 flex flex-wrap items-center gap-x-7 gap-y-4" style={order(4)}>
         <DownloadButton />
-        <a href={REPO_URL} data-umami-event="View source" data-umami-event-source="hero" className="text-secondary underline underline-offset-4 hover:text-label">
-          View source on GitHub
+        <a href={REPO_URL} data-umami-event="View source" data-umami-event-source="hero" className="link">
+          Source on GitHub
         </a>
       </div>
 
-      <p className="mt-5 text-sm text-tertiary">Open source (MIT). macOS 13 or later on Apple Silicon.</p>
-      <p className="mt-1 text-sm text-tertiary">
-        This is a live replica: click the menu bar items, the section headers or the volume sliders in the dropdown.
+      <p className="rise mt-6 text-small text-muted" style={order(4)}>
+        Free and open source (MIT). macOS 13 or later on Apple Silicon.
+        <br />
+        The dropdown is live: click the menu bar items, section headers and sliders.
       </p>
     </section>
   )

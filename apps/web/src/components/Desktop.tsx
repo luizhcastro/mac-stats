@@ -14,8 +14,8 @@ type DesktopProps = {
 }
 
 /**
- * The first screen: a fake macOS desktop with the menu bar, the hero copy and the
- * MacStats dropdown open under whichever menu bar item was clicked last.
+ * The first screen: the macOS menu bar (doubling as the page nav), the hero copy and the
+ * MacStats dropdown open under whichever menu bar item was clicked last, on a jade stage.
  */
 export function Desktop({ stats, mixer, visible }: DesktopProps) {
   const [anchor, setAnchor] = useState<BarMetric>('cpu')
@@ -38,20 +38,24 @@ export function Desktop({ stats, mixer, visible }: DesktopProps) {
 
   return (
     // On wide screens the dropdown floats (position: absolute) and takes no space in the flow, so
-    // reserve its height (~870px from the top) to keep the window section from sliding under it.
-    <div className="relative min-h-svh pb-20 desk:min-h-[max(100svh,60rem)]">
+    // reserve its height (~870px from the top) to keep the next section from sliding under it.
+    <div id="top" className="relative min-h-svh desk:min-h-[max(100svh,60rem)]">
       <MenuBar stats={stats} visible={visible} onItemClick={openFrom} itemRef={registerItem} />
-      {/* Phones: copy then dropdown. Tablets: side by side. Desktop: dropdown floats under the menu bar. */}
-      <div className="mx-auto max-w-[1280px] px-[clamp(1.25rem,4vw,3rem)] md:max-desk:grid md:max-desk:grid-cols-[minmax(0,1fr)_340px] md:max-desk:items-start md:max-desk:gap-10">
+      {/* Wide screens: the stage is a flat field down the right side, the dropdown hangs onto it
+          from the menu bar. Narrower: the stage wraps the dropdown in the page flow, under the copy. */}
+      <div aria-hidden="true" className="shutter absolute top-[30px] right-0 bottom-0 hidden w-[44vw] rounded-tl-[160px] bg-stage desk:block" />
+      <div className="page">
         <Hero />
-        <StatsPopover
-          stats={stats}
-          mixer={mixer}
-          position={position}
-          anchor={effectiveAnchor}
-          tab={tab}
-          onTabChange={setTab}
-        />
+        <div className="shutter -mx-[clamp(1.25rem,4vw,3rem)] mt-14 rounded-tl-[72px] bg-stage px-[clamp(1.25rem,4vw,3rem)] py-12 desk:contents">
+          <StatsPopover
+            stats={stats}
+            mixer={mixer}
+            position={position}
+            anchor={effectiveAnchor}
+            tab={tab}
+            onTabChange={setTab}
+          />
+        </div>
       </div>
     </div>
   )
