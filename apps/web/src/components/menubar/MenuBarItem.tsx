@@ -1,5 +1,5 @@
 import type { CSSProperties, Ref } from 'react'
-import { Icon, type IconName } from '../Icon'
+import { AppGlyph, Icon, type IconName } from '../Icon'
 
 type MenuBarItemProps = {
   label: string
@@ -33,7 +33,7 @@ export function MenuBarItem(props: MenuBarItemProps) {
       }`}
     >
       {'appIcon' in props ? (
-        <img src="/icon.webp" width={17} height={17} alt="" className="size-[17px]" />
+        <AppGlyph className="size-4" />
       ) : (
         <>
           <Icon name={props.icon} className="size-2.5 stroke-[1.7]" />

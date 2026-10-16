@@ -227,7 +227,7 @@ SwiftUI `MenuBarExtra` was tried first. It collapses complex label layouts: only
 - The landing page / README use `apps/web/public/icon.png`.
 - `bundle.sh` copies the `.icns` into `Contents/Resources/AppIcon.icns` and sets `CFBundleIconFile = AppIcon`.
 - The dropdown header in `MenuBarContentView` loads the same icon via `NSImage(named: "AppIcon")`.
-- No mono/template variant for the menu bar; the colored bar glyphs come from SF Symbols in `SingleMetricLabel`.
+- The menu bar never shows the colour icon: the `appIcon` item is the single-colour superellipse tile drawn by `AppIconLabel` in `SingleMetricLabel` (mirrored as `AppGlyph` on the landing page), and the metric glyphs are SF Symbols.
 
 ## Adding a new monitor
 
