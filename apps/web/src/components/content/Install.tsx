@@ -1,11 +1,12 @@
 import { useRef, useState, type PointerEvent } from 'react'
+import { order } from '../../lib/motion'
 import { DownloadButton } from '../DownloadButton'
 import { TrafficLights } from '../TrafficLights'
 
 /** The close: what to do on the left, the disk image window you'll see on the right */
 export function Install() {
   return (
-    <section id="install" aria-labelledby="install-title" className="page scroll-mt-16 pt-[clamp(6rem,14vw,12rem)]">
+    <section id="install" aria-labelledby="install-title" className="page scroll-mt-16 pt-[clamp(6rem,14vw,12rem)]" style={order(3)}>
       <div className="grid items-center gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div>
           <h2 id="install-title" className="enter text-head leading-none font-bold tracking-[-0.035em]">
