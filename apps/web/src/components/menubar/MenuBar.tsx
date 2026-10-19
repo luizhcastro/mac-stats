@@ -1,8 +1,6 @@
 import type { LiveStats } from '../../hooks/useLiveStats'
-import { MAIN_WINDOW_ID, REPO_URL } from '../../lib/links'
 import type { BarMetric } from '../../lib/metrics'
 import { order } from '../../lib/motion'
-import { AppleLogo } from '../Icon'
 import { Clock } from './Clock'
 import { MenuBarItem } from './MenuBarItem'
 
@@ -20,38 +18,22 @@ type StatusItemsProps = {
 
 type MenuBarProps = Required<Omit<StatusItemsProps, 'active' | 'introClick'>> & Pick<StatusItemsProps, 'active' | 'introClick'>
 
-/** Where the app menus would be: the page's own sections, like the menus of a frontmost app */
-const MENUS = [
-  { label: 'Window', href: `#${MAIN_WINDOW_ID}`, hide: 'max-sm:hidden' },
-  { label: 'Features', href: '#features', hide: 'max-[480px]:hidden' },
-  { label: 'Install', href: '#install', hide: 'max-[400px]:hidden' },
-  { label: 'GitHub', href: REPO_URL, hide: 'max-lg:hidden' },
-]
-
 /** MB/s → integer-only "512K" / "3M", like `SingleMetricLabel.compactShort` */
 function compactRate(mbPerSec: number): string {
   return mbPerSec >= 1 ? `${mbPerSec.toFixed(0)}M` : `${(mbPerSec * 1000).toFixed(0)}K`
 }
 
-export function MenuBar({ stats, visible, active, introClick, onItemClick, itemRef }: MenuBarProps) {
+/**
+ * The right half of a menu bar across the top of the hero's stage, where the dropdown hangs
+ * from. Its own box clips it, so on load it slides down out of the stage's top edge.
+ */
+export function MenuBar(props: MenuBarProps) {
   return (
-    <nav aria-label="Page" className="bar-enter glass sticky top-0 z-30 flex h-[30px] items-center justify-between rounded-none border-x-0 border-t-0 px-3.5 text-[13px] max-sm:px-2.5">
-      <div className="flex items-center gap-1 max-sm:gap-0">
-        <span className="px-2">
-          <AppleLogo />
-        </span>
-        <a href="#top" className="rounded-md px-2 py-0.5 font-bold hover:bg-white/18">
-          MacStats
-        </a>
-        {MENUS.map(({ label, href, hide }) => (
-          <a key={label} href={href} className={`rounded-md px-2 py-0.5 hover:bg-white/18 ${hide}`}>
-            {label}
-          </a>
-        ))}
+    <div aria-label="Menu bar preview" className="relative overflow-hidden desk:absolute desk:top-4 desk:right-0 desk:w-[44vw] desk:rounded-tl-xl">
+      <div className="bar-enter glass glass-dark flex h-[30px] items-center justify-end rounded-none border-x-0 border-t-0 px-3.5 text-[13px] max-sm:px-2.5">
+        <StatusItems {...props} />
       </div>
-
-      <StatusItems stats={stats} visible={visible} active={active} introClick={introClick} onItemClick={onItemClick} itemRef={itemRef} />
-    </nav>
+    </div>
   )
 }
 

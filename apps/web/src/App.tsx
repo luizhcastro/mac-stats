@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Desktop } from './components/Desktop'
+import { Header } from './components/Header'
 import { Features } from './components/content/Features'
 import { Footer } from './components/content/Footer'
 import { IdleCost } from './components/content/IdleCost'
@@ -31,6 +32,7 @@ export function App() {
 
   return (
     <>
+      <Header />
       <main>
         <Desktop stats={stats} mixer={mixer} visible={visibleMetrics} />
         <MainWindow stats={stats} mixer={mixer} visible={visibleMetrics} onToggleMetric={toggleMetric} />

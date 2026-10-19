@@ -155,14 +155,6 @@ export function Icon({ name, className = 'size-[1em]' }: IconProps) {
   )
 }
 
-export function AppleLogo() {
-  return (
-    <svg viewBox="0 0 14 17" className="h-4 w-[13px] fill-white" aria-hidden="true">
-      <path d="M11.6 9c0-2 1.7-3 1.8-3a3.9 3.9 0 0 0-3-1.7c-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7A4.1 4.1 0 0 0 .9 6.5c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1s1.4-.7 2.7-.7 1.6.7 2.7.7 1.8-1 2.5-2a8.6 8.6 0 0 0 1.1-2.3A3.6 3.6 0 0 1 11.6 9ZM9.5 2.8A3.6 3.6 0 0 0 10.4 0 3.8 3.8 0 0 0 8 1.3a3.5 3.5 0 0 0-.9 2.6 3.1 3.1 0 0 0 2.4-1.1Z" />
-    </svg>
-  )
-}
-
 /**
  * The menu bar's single-colour app icon, same 16-unit drawing as `AppIconLabel` in
  * SingleMetricLabel.swift: the icon's superellipse tile in the current colour with its three

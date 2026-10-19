@@ -139,7 +139,7 @@
    browsers without scroll timelines (or with Reduce Motion) just show the finished state. */
 @media (prefers-reduced-motion: no-preference) {
   /* First load, one sequence that acts out the product (ms from first paint):
-       0  the menu bar slides down
+       0  the menu bar slides down out of the stage's top edge
      200  status items fill in from the clock leftward
      250  the headline lines slide up out of their own baselines
      480  sentence, actions, notes rise
