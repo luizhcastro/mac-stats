@@ -136,10 +136,10 @@
 }
 
 /* Page motion. Everything is visible without it: entrances only add a starting offset, so
-   browsers without scroll timelines (or with Reduce Motion) just show the finished state. */
+   with Reduce Motion the page just shows the finished state. */
 @media (prefers-reduced-motion: no-preference) {
   /* First load, one sequence that acts out the product (ms from first paint):
-       0  the menu bar slides down
+       0  the menu bar slides down out of the stage's top edge
      200  status items fill in from the clock leftward
      250  the headline lines slide up out of their own baselines
      480  sentence, actions, notes rise
@@ -147,6 +147,7 @@
      900  the grey spreads out of that item in a circle until it fills the stage
           (the signature move; --stage-ox/--stage-oy put the centre on the item)
     1050  the dropdown grows out of its arrow under the item
+    1400  the sections below rise one after another, whether or not they're in view yet
     1500  the CPU sparkline draws left to right */
   .bar-enter {
     animation: bar-down 450ms var(--ease-snappy) backwards;
@@ -189,20 +190,15 @@
     animation: draw 900ms var(--ease-in-out) 1500ms backwards;
   }
 
-  /* Section parts rise once as they come into view (App adds .is-in from an IntersectionObserver),
-     each on its own, so they arrive in reading order; `.late` holds back the second part of a row.
-     Time-based, not scroll-linked: tying travel to the scroll made content trail the wheel. */
-  .enter:not(.is-in) {
-    opacity: 0;
-    transform: translateY(24px);
-  }
+  /* The sections below don't wait to be scrolled to: their parts rise once the hero has played,
+     each section a beat after the one above (`--i` on the section), `.late` holding back the
+     second part of a row */
   .enter {
-    transition:
-      opacity 700ms var(--ease-snappy),
-      transform 900ms var(--ease-snappy);
+    animation: rise 800ms var(--ease-snappy) backwards;
+    animation-delay: calc(var(--i, 0) * 120ms + 1400ms + var(--late, 0ms));
   }
   .enter.late {
-    transition-delay: 90ms;
+    --late: 90ms;
   }
 }
 
@@ -210,6 +206,7 @@
   from {
     opacity: 0;
     transform: translateY(24px);
+    filter: blur(2px);
   }
 }
 

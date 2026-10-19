@@ -64,10 +64,10 @@ export function StatsPopover({ stats, mixer, position, open, openCount, tab, onT
       aria-label="MacStats dropdown preview"
       style={position ? { left: position.left, transformOrigin: `${position.arrow}px 0` } : undefined}
       className={`popover-enter origin-top glass glass-dark w-[min(340px,100%)] rounded-[22px] p-3.5 text-[13px] leading-[1.3] ${
-        position ? 'absolute top-[38px] z-20' : 'relative mx-auto'
+        position ? 'absolute top-[54px] z-20' : 'relative mx-auto'
       }`}
     >
-      {/* In the page flow (narrow screens) there's no menu bar item under it to point at */}
+      {/* In the page flow (narrow screens) it isn't placed under one item, so there's nothing to point at */}
       {position && <PopoverArrow left={position.arrow} />}
 
       <header className="flex items-center gap-2">

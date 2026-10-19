@@ -4,7 +4,7 @@ import { DownloadButton } from './DownloadButton'
 
 export function Hero() {
   return (
-    <section className="pt-32 max-desk:pt-16 desk:max-w-[36rem]">
+    <section className="pt-24 max-desk:pt-12 desk:max-w-[36rem]">
       <img src="/icon.webp" width={80} height={80} alt="MacStats icon" className="rise mb-8 size-20 max-sm:mb-6 max-sm:size-16" />
       {/* Each line slides up from behind its own baseline */}
       <h1 className="lines text-display leading-[0.95] font-bold tracking-[-0.04em]">

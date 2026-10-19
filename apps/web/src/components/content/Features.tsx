@@ -5,6 +5,7 @@ import { formatPercent } from '../../lib/format'
 import { historyFor, type HistoryRange } from '../../lib/history'
 import type { BarMetric, ProcessTab } from '../../lib/metrics'
 import type { Mixer } from '../../lib/mixer'
+import { order } from '../../lib/motion'
 import { AreaChart } from '../charts/AreaChart'
 import { Icon, type IconName } from '../Icon'
 import { StatusItems } from '../menubar/MenuBar'
@@ -34,7 +35,7 @@ export function Features({ stats, mixer, visible, onToggleMetric }: FeaturesProp
   const playing = mixer.apps.filter((a) => a.playing).length
 
   return (
-    <section id="features" aria-labelledby="features-title" className="page scroll-mt-16 pt-[clamp(6rem,14vw,12rem)]">
+    <section id="features" aria-labelledby="features-title" className="page scroll-mt-16 pt-[clamp(6rem,14vw,12rem)]" style={order(1)}>
       <h2 id="features-title" className="enter text-head leading-none font-bold tracking-[-0.035em]">
         What you get
       </h2>

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Desktop } from './components/Desktop'
+import { Header } from './components/Header'
 import { Features } from './components/content/Features'
 import { Footer } from './components/content/Footer'
 import { IdleCost } from './components/content/IdleCost'
@@ -7,7 +8,6 @@ import { Install } from './components/content/Install'
 import { MainWindow } from './components/window/MainWindow'
 import { useLiveStats } from './hooks/useLiveStats'
 import { BAR_METRICS, type BarMetric } from './lib/metrics'
-import { revealOnScroll } from './lib/motion'
 import { useMixer } from './lib/mixer'
 
 export function App() {
@@ -16,9 +16,6 @@ export function App() {
   const stats = useLiveStats()
   const mixer = useMixer()
   const [visibleMetrics, setVisibleMetrics] = useState(() => new Set(BAR_METRICS.map((m) => m.id)))
-
-  // Every section is rendered up front, so one pass after the first commit finds all of them
-  useEffect(revealOnScroll, [])
 
   function toggleMetric(metric: BarMetric) {
     setVisibleMetrics((current) => {
@@ -31,6 +28,7 @@ export function App() {
 
   return (
     <>
+      <Header />
       <main>
         <Desktop stats={stats} mixer={mixer} visible={visibleMetrics} />
         <MainWindow stats={stats} mixer={mixer} visible={visibleMetrics} onToggleMetric={toggleMetric} />

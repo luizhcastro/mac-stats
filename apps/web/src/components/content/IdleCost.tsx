@@ -1,5 +1,6 @@
 import NumberFlow from '@number-flow/react'
 import { useState } from 'react'
+import { order } from '../../lib/motion'
 
 // Measured with the dropdown and main window closed, see README
 const IDLE_CPU_SHARE = 0.005
@@ -11,7 +12,7 @@ export function IdleCost() {
   const minutes = hours * 60 * IDLE_CPU_SHARE
 
   return (
-    <section aria-labelledby="idle-title" className="mt-[clamp(6rem,14vw,12rem)] bg-surface">
+    <section aria-labelledby="idle-title" className="mt-[clamp(6rem,14vw,12rem)] bg-surface" style={order(2)}>
       <div className="page flex min-h-[min(88svh,60rem)] flex-col py-[clamp(4rem,8vw,7rem)] max-md:min-h-[84svh]">
         <h2 id="idle-title" className="enter text-head leading-none font-bold tracking-[-0.035em]">
           How long is your Mac awake?

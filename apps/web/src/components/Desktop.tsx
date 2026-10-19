@@ -14,13 +14,13 @@ type DesktopProps = {
 }
 
 /**
- * The first screen: the macOS menu bar (doubling as the page nav), the hero copy and the
- * MacStats dropdown open under whichever menu bar item was clicked last, on a grey stage.
+ * The first screen: the hero copy and a grey stage with a menu bar across its top, the MacStats
+ * dropdown open under whichever menu bar item was clicked last.
  */
-/** Centre of the anchored menu bar item, in the desktop stage's own coordinates (it spans the right 44vw) */
+/** Centre of the anchored menu bar item, in the desktop stage's own coordinates (it spans the right 44vw, the bar its top 30px) */
 function stageOrigin(position: PopoverPosition | null) {
   if (!position) return undefined
-  return { '--stage-ox': `calc(${position.left + position.arrow}px - 56vw)`, '--stage-oy': '-15px' } as CSSProperties
+  return { '--stage-ox': `calc(${position.left + position.arrow}px - 56vw)`, '--stage-oy': '15px' } as CSSProperties
 }
 
 export function Desktop({ stats, mixer, visible }: DesktopProps) {
@@ -41,15 +41,13 @@ export function Desktop({ stats, mixer, visible }: DesktopProps) {
 
   // Like StatusBarController: the open item's own button closes the dropdown, any other item
   // re-anchors it (and reopens from the new arrow). Narrow screens keep it in the page flow,
-  // below the copy: there a tap scrolls down to it (closing would leave a hole in the layout).
-  const flowStage = useRef<HTMLDivElement>(null)
+  // where closing would leave a hole in the layout, so there every tap only re-anchors it.
   function onItemClick(metric: BarMetric) {
     if (open && position && metric === effectiveAnchor) return setOpen(false)
     setAnchor(metric)
     setTab(TAB_FOR_METRIC[metric])
     setOpen(true)
     setOpenCount((n) => n + 1)
-    if (!position) flowStage.current?.scrollIntoView({ block: 'start' })
   }
 
   // Esc closes it, as it does a transient NSPopover
@@ -62,39 +60,40 @@ export function Desktop({ stats, mixer, visible }: DesktopProps) {
 
   return (
     // On wide screens the dropdown floats (position: absolute) and takes no space in the flow, so
-    // reserve its height (~870px from the top) to keep the next section from sliding under it.
-    <div id="top" className="relative min-h-svh desk:min-h-[clamp(60rem,100svh,80rem)]">
-      <MenuBar
-        stats={stats}
-        visible={visible}
-        active={open ? effectiveAnchor : undefined}
-        introClick={openCount === 0}
-        onItemClick={onItemClick}
-        itemRef={registerItem}
-      />
-      {/* Wide screens: the stage is a flat field down the right side, the dropdown hangs onto it
-          from the menu bar. Narrower: the stage wraps the dropdown in the page flow, under the copy. */}
-      <div
-        aria-hidden="true"
-        className="shutter absolute top-[30px] right-0 bottom-0 hidden w-[44vw] rounded-tl-[160px] bg-stage desk:block"
-        // The grey spreads from the anchored item, which sits in the menu bar 15px above the stage
-        style={stageOrigin(position)}
-      />
+    // reserve its height (~890px from the top) to keep the next section from sliding under it.
+    // With the header above, the screen it fills is 3.5rem short of the viewport.
+    <div id="top" className="relative min-h-svh scroll-mt-14 desk:min-h-[clamp(60rem,calc(100svh-3.5rem),80rem)]">
       <div className="page">
         <Hero />
-        <div
-          ref={flowStage}
-          className="shutter -mx-[clamp(1.25rem,4vw,3rem)] mt-14 scroll-mt-[30px] rounded-tl-[72px] bg-stage px-[clamp(1.25rem,4vw,3rem)] py-12 desk:contents"
-        >
-          <StatsPopover
-            stats={stats}
-            mixer={mixer}
-            position={position}
-            open={open}
-            openCount={openCount}
-            tab={tab}
-            onTabChange={setTab}
+        {/* Narrow screens: the stage is a band under the copy, the menu bar across its top and the
+            dropdown under that, all in the page flow. Wide screens: the wrappers drop out and the
+            stage is a field down the right side, the bar on its top edge, the dropdown hanging from it. */}
+        <div className="relative -mx-[clamp(1.25rem,4vw,3rem)] mt-14 pb-12 desk:contents">
+          <div
+            aria-hidden="true"
+            className="shutter absolute inset-0 bg-stage desk:top-4 desk:left-auto desk:w-[44vw] desk:rounded-l-xl"
+            // The grey spreads from the anchored item, in the bar along the stage's top edge
+            style={stageOrigin(position)}
           />
+          <MenuBar
+            stats={stats}
+            visible={visible}
+            active={open ? effectiveAnchor : undefined}
+            introClick={openCount === 0}
+            onItemClick={onItemClick}
+            itemRef={registerItem}
+          />
+          <div className="relative px-[clamp(1.25rem,4vw,3rem)] pt-12 desk:contents">
+            <StatsPopover
+              stats={stats}
+              mixer={mixer}
+              position={position}
+              open={open}
+              openCount={openCount}
+              tab={tab}
+              onTabChange={setTab}
+            />
+          </div>
         </div>
       </div>
     </div>
