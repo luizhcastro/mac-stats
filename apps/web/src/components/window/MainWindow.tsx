@@ -60,8 +60,9 @@ export function MainWindow({ stats, mixer, visible, onToggleMetric }: MainWindow
         </p>
       </div>
 
-      {/* The window sits on the same grey stage as the dropdown, bleeding off the right edge */}
-      <div className="enter mt-14 ml-[max(0px,calc((100vw-1280px)/2))] rounded-tl-[160px] bg-stage py-[clamp(1.25rem,5vw,5rem)] pr-[clamp(1.25rem,4vw,3rem)] pl-[clamp(1.25rem,6vw,6rem)] max-md:rounded-tl-[72px] max-md:px-3">
+      {/* The window sits on the same grey stage as the dropdown, bleeding off the right edge. Below 1280px it
+          touches the left one too, so its corners stay square there. */}
+      <div className="enter mt-14 ml-[max(0px,calc((100vw-1280px)/2))] bg-stage py-[clamp(1.25rem,5vw,5rem)] pr-[clamp(1.25rem,4vw,3rem)] pl-[clamp(1.25rem,6vw,6rem)] max-md:px-3 xl:rounded-l-xl">
         <div
           data-ui
           aria-label="MacStats main window preview"
