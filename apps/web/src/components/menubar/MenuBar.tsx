@@ -39,7 +39,8 @@ export function MenuBar(props: MenuBarProps) {
 
 /**
  * The MacStats status items plus the clock, the right half of the menu bar. Without
- * `onItemClick` it's a static crop (the feature and install fragments further down).
+ * `onItemClick` it's a static crop of just the items (the feature fragment further down):
+ * the clock would push them past a 260px panel.
  */
 export function StatusItems({ stats, visible, active, introClick, onItemClick, itemRef }: StatusItemsProps) {
   // Slot widths come from SingleMetricLabel.swift so the values don't jitter
@@ -80,7 +81,7 @@ export function StatusItems({ stats, visible, active, introClick, onItemClick, i
           onClick={() => onItemClick?.(item.id)}
         />
       ))}
-      <Clock />
+      {onItemClick && <Clock />}
     </div>
   )
 }

@@ -49,7 +49,7 @@ export function Features({ stats, mixer, visible, onToggleMetric }: FeaturesProp
           title="Pick what sits in the bar"
           fragment={
             <div className="grid gap-4">
-              <div className="flex h-[30px] items-center justify-end overflow-hidden rounded-md bg-white/8 px-2 text-[13px]">
+              <div className="flex h-[30px] items-center justify-center overflow-hidden rounded-md bg-white/8 px-1.5 text-[13px] *:gap-1">
                 <StatusItems stats={stats} visible={visible} />
               </div>
               <MenuBarPrefs visible={visible} onToggle={onToggleMetric} />
